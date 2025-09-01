@@ -5,6 +5,7 @@
 import logging
 import os
 import tempfile
+import math
 from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -91,6 +92,17 @@ class ExcelGenerator:
     
     def _fill_data(self, search_results: list):
         """Заполняет таблицу данными"""
+        probs = [r.get('probability_percent') for r in search_results
+                 if isinstance(r.get('probability_percent'), (int, float))]
+        if probs:
+            logger.info(
+                "[EXPORT] prob%% count=%d min=%d max=%d avg=%d",
+                len(probs), min(probs), max(probs),
+                round(sum(probs) / len(probs))
+            )
+        else:
+            logger.warning("[EXPORT] prob%% no valid values")
+
         for row, item in enumerate(search_results, 2):
             # Номер строки
             self.worksheet.cell(row=row, column=1, value=row - 1)
@@ -149,14 +161,17 @@ class ExcelGenerator:
             self.worksheet.cell(row=row, column=11, value=relevance)
             
             # Вероятность (процент уверенности бота)
-            # Используем новое поле probability_percent, если оно есть
-            probability = item.get('probability_percent')
-            if probability is not None:
-                confidence = probability
-            else:
-                # Fallback на старый метод
-                confidence = item.get('confidence_score', self._calculate_confidence(item, row, len(search_results)))
-            self.worksheet.cell(row=row, column=12, value=f"{confidence}%")
+            prob = item.get('probability_percent')
+            if prob is None:
+                prob = item.get(
+                    'confidence_score',
+                    self._calculate_confidence(item, row, len(search_results))
+                )
+            if not isinstance(prob, (int, float)) or math.isnan(prob):
+                raise ValueError('probability_percent is missing or not a number')
+            confidence = prob
+            cell = self.worksheet.cell(row=row, column=12, value=prob / 100)
+            cell.number_format = "0.0%"
             
             # Вопросы для уточнения (если уверенность < 90%)
             clarification_question = ""
