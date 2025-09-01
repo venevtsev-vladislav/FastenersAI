@@ -135,11 +135,18 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     explanation: []
   };
   
+  console.log(`🔍 analyzeMatches: Анализируем "${name}"`);
+  console.log(`🔍 analyzeMatches: Нормализованное название: "${n}"`);
+  console.log(`🔍 analyzeMatches: Токены для поиска:`, tokens);
+  
   // Проверяем совпадение типа
   if (tokens.typeTok && n.includes(tokens.typeTok)) {
     analysis.type_match = true;
     analysis.matched_tokens.push(tokens.typeTok);
     analysis.explanation.push(`✅ Совпадение типа: "${tokens.typeTok}"`);
+    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение типа: "${tokens.typeTok}"`);
+  } else if (tokens.typeTok) {
+    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение типа: "${tokens.typeTok}"`);
   }
   
   // Проверяем совпадение стандарта
@@ -148,6 +155,9 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.standard_match = true;
     analysis.matched_tokens.push(...matchedStandards);
     analysis.explanation.push(`✅ Совпадение стандарта: "${matchedStandards.join(', ')}"`);
+    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение стандарта: "${matchedStandards.join(', ')}"`);
+  } else if (tokens.stdToks.length > 0) {
+    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение стандарта: "${tokens.stdToks.join(', ')}"`);
   }
   
   // Проверяем совпадение размеров
@@ -156,6 +166,10 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.size_match = true;
     analysis.matched_tokens.push(...matchedSizes);
     analysis.explanation.push(`✅ Совпадение размеров: "${matchedSizes.join(', ')}"`);
+    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение размеров: "${matchedSizes.join(', ')}"`);
+  } else if (tokens.mxlToks.length > 0) {
+    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение размеров: "${tokens.mxlToks.join(', ')}"`);
+    console.log(`🔍 analyzeMatches: Искали токены:`, tokens.mxlToks.map(t => normalizeStr(t)));
   }
   
   // Проверяем совпадение покрытия
@@ -164,8 +178,12 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.coating_match = true;
     analysis.matched_tokens.push(...matchedCoatings);
     analysis.explanation.push(`✅ Совпадение покрытия: "${matchedCoatings.join(', ')}"`);
+    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение покрытия: "${matchedCoatings.join(', ')}"`);
+  } else if (tokens.coatToks.length > 0) {
+    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение покрытия: "${tokens.coatToks.join(', ')}"`);
   }
   
+  console.log(`🔍 analyzeMatches: Итоговый анализ:`, analysis);
   return analysis;
 }
 
@@ -329,6 +347,15 @@ serve(async (req) => {
     console.log('🔍 FastenerSearch: Подготовленные токены:', {
       typeTok, stdToks, mxlToks, coatToks
     });
+    
+    // Детальное логирование токенов размеров
+    if (mxlToks.length > 0) {
+      console.log('🔍 FastenerSearch: Токены размеров:', mxlToks);
+      console.log('🔍 FastenerSearch: Исходные размеры:', {
+        diameter: user_intent?.diameter,
+        length: user_intent?.length
+      });
+    }
 
     let results = [];
 

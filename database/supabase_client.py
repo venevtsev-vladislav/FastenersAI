@@ -138,13 +138,8 @@ async def search_parts(query: str, user_intent: dict = None) -> list:
         # Логируем финальный поисковый запрос (после расширения)
         logger.info(f"Умный поиск через Edge Function по запросу: {search_query}")
         
-        # Упрощаем user_intent.type для лучшего поиска
+        # Сохраняем оригинальный user_intent для лучшего поиска
         simplified_user_intent = user_intent.copy() if user_intent else {}
-        if simplified_user_intent.get('type'):
-            # Извлекаем базовый тип (например, "саморез" из "саморез для ГКЛ по дереву")
-            type_parts = simplified_user_intent['type'].split()
-            if type_parts:
-                simplified_user_intent['type'] = type_parts[0]  # Берем первое слово
         
         payload = {
             'search_query': search_query,
@@ -199,6 +194,7 @@ async def search_parts(query: str, user_intent: dict = None) -> list:
                 'total_quantity': packaging['total_quantity'],
                 'excess_quantity': packaging['excess_quantity'],
                 'confidence_score': int(result.get('relevance_score', 0) * 100),
+                'probability_percent': result.get('probability_percent', 1.0),  # Добавляем probability_percent из Edge Function
                 'user_intent': user_intent,  # Добавляем user_intent для Excel
                 'search_query': result.get('search_query', query),  # Добавляем search_query
                 'full_query': result.get('full_query', query)  # Добавляем full_query
@@ -277,7 +273,8 @@ async def _fallback_search_parts(query: str, user_intent: dict = None) -> list:
                 'packages_needed': 0,
                 'total_quantity': 0,
                 'excess_quantity': 0,
-                'confidence_score': 50
+                'confidence_score': 50,
+                'probability_percent': 1.0  # Низкая вероятность для fallback
             }
             formatted_results.append(formatted_result)
         
