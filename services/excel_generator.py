@@ -99,6 +99,68 @@ class ExcelGenerator:
             order_position = item.get('order_position', '')
             self.worksheet.cell(row=row, column=2, value=order_position)
             
+            # Исходный запрос пользователя
+            original_query = item.get('full_query', item.get('search_query', ''))
+            self.worksheet.cell(row=row, column=3, value=original_query)
+            
+            # Поисковый запрос
+            search_query = item.get('search_query', '')
+            self.worksheet.cell(row=row, column=4, value=search_query)
+            
+            # Количество запрашиваемых деталей
+            requested_quantity = item.get('requested_quantity', 1)
+            self.worksheet.cell(row=row, column=5, value=requested_quantity)
+            
+            # Артикул (SKU)
+            sku = item.get('sku', '')
+            self.worksheet.cell(row=row, column=6, value=sku)
+            
+            # Наименование в каталоге
+            name = item.get('name', '')
+            self.worksheet.cell(row=row, column=7, value=name)
+            
+            # Тип детали
+            item_type = item.get('type', '')
+            self.worksheet.cell(row=row, column=8, value=item_type)
+            
+            # Размер упаковки
+            pack_size = item.get('pack_size', 0)
+            self.worksheet.cell(row=row, column=9, value=pack_size)
+            
+            # Единица измерения
+            unit = item.get('unit', 'шт')
+            self.worksheet.cell(row=row, column=10, value=unit)
+            
+            # Релевантность (число от 0 до 1)
+            relevance_score = item.get('relevance_score', 0)
+            relevance_cell = self.worksheet.cell(row=row, column=11, value=relevance_score / 100.0)
+            relevance_cell.number_format = '0.00'
+            
+            # Вероятность (%) - исправляем bug с процентами
+            probability_percent = item.get('probability_percent', 0)
+            probability_cell = self.worksheet.cell(row=row, column=12, value=probability_percent / 100.0)
+            probability_cell.number_format = '0.00%'  # Правильный формат для процентов
+            
+            # Вопросы для уточнения
+            clarification_questions = self._generate_clarification_question(item, probability_percent)
+            self.worksheet.cell(row=row, column=13, value=clarification_questions)
+            
+            # Статус валидации
+            validation_status = item.get('validation_status', 'UNKNOWN')
+            self.worksheet.cell(row=row, column=14, value=validation_status)
+            
+            # Улучшенный поиск
+            improved_search = item.get('is_normalized', False)
+            self.worksheet.cell(row=row, column=15, value='Да' if improved_search else 'Нет')
+            
+            # Цикл улучшения
+            improvement_cycle = item.get('improvement_cycle', 0)
+            self.worksheet.cell(row=row, column=16, value=improvement_cycle)
+            
+            # Нормализация ИИ
+            ai_normalization = item.get('is_normalized', False)
+            self.worksheet.cell(row=row, column=17, value='Да' if ai_normalization else 'Нет')
+            
             # Исходный запрос пользователя (полный запрос)
             self.worksheet.cell(row=row, column=3, value=self.user_request)
             
