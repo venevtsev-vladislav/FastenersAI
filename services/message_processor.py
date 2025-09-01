@@ -54,14 +54,65 @@ class MessageProcessor:
             parse_result = smart_parser.parse_query(text)
             
             if parse_result['need_gpt']:
-                logger.info(f"🔍 SmartParser: GPT необходим для: {parse_result['reason']}")
-                # Используем GPT для сложных запросов
-                user_intent = await self.openai_service.analyze_user_intent(text)
-                logger.info(f"GPT анализ успешен: {user_intent}")
+                logger.info(f"🔍 SmartParser: ИИ ассистент необходим для: {parse_result['reason']}")
+                # Используем ассистента с векторным хранилищем для сложных запросов
+                assistant_result = await self.openai_service.analyze_with_assistant(text)
+                logger.info(f"Ассистент анализ успешен: {assistant_result}")
+                # Fallback на SmartParser, если ассистент вернул неизвестно или низкую уверенность
+                if not assistant_result or (isinstance(assistant_result, dict) and assistant_result.get('type') == 'неизвестно'):
+                    user_intent = parse_result.get('user_intent', {})
+                else:
+                    # Обрабатываем результат ассистента (может быть массив items или один объект)
+                    if isinstance(assistant_result, dict) and 'items' in assistant_result:
+                        # Если это массив items, обрабатываем как множественный заказ
+                        if assistant_result['items'] and len(assistant_result['items']) > 0:
+                            user_intent = {
+                                'is_multiple_order': True,
+                                'items': assistant_result['items']
+                            }
+                        else:
+                            user_intent = {}
+                    else:
+                        # Если это один объект
+                        user_intent = assistant_result
             else:
                 logger.info(f"🔍 SmartParser: GPT НЕ нужен: {parse_result['reason']}")
                 # Используем результат парсинга по правилам
-                user_intent = parse_result['user_intent']
+                user_intent = parse_result.get('user_intent', {})
+            
+            # Если SmartParser не смог распознать, создаем базовый user_intent из текста
+            if not user_intent or user_intent.get('type') == 'неизвестно':
+                logger.info("🔍 SmartParser не распознал, создаем базовый user_intent")
+                # Создаем базовый user_intent прямо здесь
+                import re
+                text_lower = text.lower()
+                
+                detected_type = 'саморез' if 'саморез' in text_lower else 'крепеж'
+                
+                # Ищем размеры 4,2x90
+                diameter = None
+                length = None
+                match = re.search(r'(\d+(?:,\d+)?)\s*[хx×]\s*(\d+)', text_lower)
+                if match:
+                    diameter = match.group(1).replace(',', '.')
+                    length = match.group(2)
+                
+                # Ищем количество
+                quantity = None
+                qty_match = re.search(r'(\d+)\s*шт', text_lower)
+                if qty_match:
+                    quantity = f"{qty_match.group(1)} шт"
+                
+                user_intent = {
+                    'type': detected_type,
+                    'diameter': diameter,
+                    'length': f"{length} мм" if length else None,
+                    'quantity': quantity,
+                    'confidence': 0.7
+                }
+            # Нормализуем формат: если пришел список позиций, оборачиваем в объект множественного заказа
+            if isinstance(user_intent, list):
+                user_intent = { 'is_multiple_order': True, 'items': user_intent }
             
             return {
                 'type': 'text',
@@ -72,10 +123,29 @@ class MessageProcessor:
                 
         except Exception as e:
             logger.error(f"Ошибка при анализе через SmartParser: {e}")
-            # Fallback: используем GPT
+            # Fallback: используем ассистента, затем SmartParser при неудаче
             try:
-                user_intent = await self.openai_service.analyze_user_intent(text)
-                logger.info(f"Fallback GPT анализ успешен: {user_intent}")
+                assistant_result = await self.openai_service.analyze_with_assistant(text)
+                logger.info(f"Fallback ассистент анализ успешен: {assistant_result}")
+                if not assistant_result or (isinstance(assistant_result, dict) and assistant_result.get('type') == 'неизвестно'):
+                    # Последний рубеж — SmartParser
+                    sp = SmartParser()
+                    pr = sp.parse_query(text)
+                    user_intent = pr.get('user_intent')
+                else:
+                    # Обрабатываем результат ассистента (может быть массив items или один объект)
+                    if isinstance(assistant_result, dict) and 'items' in assistant_result:
+                        # Если это массив items, обрабатываем как множественный заказ
+                        if assistant_result['items'] and len(assistant_result['items']) > 0:
+                            user_intent = {
+                                'is_multiple_order': True,
+                                'items': assistant_result['items']
+                            }
+                        else:
+                            user_intent = {}
+                    else:
+                        # Если это один объект
+                        user_intent = assistant_result
             except Exception as gpt_error:
                 logger.error(f"Fallback GPT также не сработал: {gpt_error}")
                 user_intent = None
@@ -109,7 +179,7 @@ class MessageProcessor:
                 smart_parser = SmartParser()
                 
                 # Для голосовых сообщений всегда используем GPT (они сложные)
-                user_intent = await self.openai_service.analyze_user_intent(text)
+                user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Голосовой GPT анализ успешен: {user_intent}")
             except Exception as e:
                 logger.error(f"Ошибка при анализе голосового сообщения: {e}")
@@ -119,7 +189,8 @@ class MessageProcessor:
                 'type': 'voice',
                 'original_content': f"Голосовое сообщение ({message.voice.duration}с)",
                 'processed_text': text,
-                'user_intent': user_intent
+                'user_intent': user_intent,
+                'is_voice': True  # Добавляем флаг для подписи
             }
             
         except Exception as e:
@@ -148,7 +219,7 @@ class MessageProcessor:
                 smart_parser = SmartParser()
                 
                 # Для аудио файлов всегда используем GPT (они сложные)
-                user_intent = await self.openai_service.analyze_user_intent(text)
+                user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Аудио GPT анализ успешен: {user_intent}")
             except Exception as e:
                 logger.error(f"Ошибка при анализе аудио файла: {e}")
@@ -188,7 +259,7 @@ class MessageProcessor:
                 smart_parser = SmartParser()
                 
                 # Для фото всегда используем GPT (они сложные)
-                user_intent = await self.openai_service.analyze_user_intent(text)
+                user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Фото GPT анализ успешен: {user_intent}")
             except Exception as e:
                 logger.error(f"Ошибка при анализе фото: {e}")
@@ -237,17 +308,21 @@ class MessageProcessor:
                 smart_parser = SmartParser()
                 
                 # Для документов всегда используем GPT (они сложные)
-                user_intent = await self.openai_service.analyze_user_intent(text)
+                user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Документ GPT анализ успешен: {user_intent}")
             except Exception as e:
                 logger.error(f"Ошибка при анализе документа: {e}")
                 user_intent = None
+            # Нормализуем формат для множественных позиций
+            if isinstance(user_intent, list):
+                user_intent = { 'is_multiple_order': True, 'items': user_intent }
             
             return {
                 'type': 'document',
                 'original_content': f"Документ: {document.file_name}",
                 'processed_text': text,
-                'user_intent': user_intent
+                'user_intent': user_intent,
+                'is_document': True  # Добавляем флаг для подписи
             }
             
         except Exception as e:

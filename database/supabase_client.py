@@ -74,8 +74,6 @@ async def search_parts(query: str, user_intent: dict = None) -> list:
             logger.warning("Supabase не инициализирован, возвращаем заглушку")
             return []
         
-        logger.info(f"Умный поиск через Edge Function по запросу: {query}")
-        
         # Вызываем Edge Function для умного поиска
         import aiohttp
         
@@ -85,10 +83,78 @@ async def search_parts(query: str, user_intent: dict = None) -> list:
             'Content-Type': 'application/json'
         }
         
+        # Создаем поисковый запрос из user_intent
+        if user_intent and user_intent.get('type'):
+            parts = []
+            item_type = user_intent.get('type', '')
+            parts.append(item_type)
+
+            diameter = (user_intent.get('diameter') or '').strip()
+            length = (user_intent.get('length') or '').strip()
+
+            # Приводим размеры к формату 4.2x90 и добавляем варианты с х/×
+            def clean_mm(value: str) -> str:
+                v = value.lower().replace('мм', '').replace(' ', '')
+                return v
+
+            if diameter and length:
+                d = clean_mm(diameter)
+                l = clean_mm(length)
+                size_tokens = [f"{d}x{l}", f"{d}х{l}", f"{d}×{l}"]
+                parts.extend(size_tokens)
+            else:
+                if diameter:
+                    parts.append(diameter)
+                if length:
+                    parts.append(length)
+
+            if user_intent.get('coating'):
+                parts.append(user_intent['coating'])
+            if user_intent.get('standard'):
+                parts.append(user_intent['standard'])
+
+            # Если исходный текст содержит ГКЛ — добавим синонимы для повышения совпадений
+            ql = (query or '').lower()
+            if 'гкл' in ql or 'гипсокарт' in ql:
+                parts.extend(['гкл', 'гипсокартон'])
+
+            search_query = ' '.join([p for p in parts if p])
+        else:
+            # Fallback на исходный запрос
+            search_query = query
+
+        # Расширяем токены по справочнику синонимов
+        try:
+            from services.alias_service import AliasService
+            alias_service = AliasService()
+            base_tokens = [t for t in search_query.split() if t]
+            expanded_tokens = await alias_service.expand_tokens(base_tokens, original_text=query)
+            # Собираем строку, избегая повторов
+            if expanded_tokens:
+                search_query = ' '.join(expanded_tokens)
+        except Exception as e:
+            logger.warning(f"Не удалось расширить синонимы: {e}")
+
+        # Логируем финальный поисковый запрос (после расширения)
+        logger.info(f"Умный поиск через Edge Function по запросу: {search_query}")
+        
+        # Упрощаем user_intent.type для лучшего поиска
+        simplified_user_intent = user_intent.copy() if user_intent else {}
+        if simplified_user_intent.get('type'):
+            # Извлекаем базовый тип (например, "саморез" из "саморез для ГКЛ по дереву")
+            type_parts = simplified_user_intent['type'].split()
+            if type_parts:
+                simplified_user_intent['type'] = type_parts[0]  # Берем первое слово
+        
         payload = {
-            'search_query': query,
-            'user_intent': user_intent or {}
+            'search_query': search_query,
+            'user_intent': simplified_user_intent
         }
+        
+        # Логируем что отправляем в Edge Function
+        logger.info(f"Отправляем в Edge Function: user_intent.type = {simplified_user_intent.get('type')}")
+        logger.info(f"Отправляем в Edge Function: user_intent.diameter = {simplified_user_intent.get('diameter')}")
+        logger.info(f"Отправляем в Edge Function: user_intent.length = {simplified_user_intent.get('length')}")
         
         async with aiohttp.ClientSession() as session:
             async with session.post(edge_function_url, json=payload, headers=headers) as response:
@@ -132,7 +198,10 @@ async def search_parts(query: str, user_intent: dict = None) -> list:
                 'packages_needed': packaging['packages_needed'],
                 'total_quantity': packaging['total_quantity'],
                 'excess_quantity': packaging['excess_quantity'],
-                'confidence_score': int(result.get('relevance_score', 0) * 100)
+                'confidence_score': int(result.get('relevance_score', 0) * 100),
+                'user_intent': user_intent,  # Добавляем user_intent для Excel
+                'search_query': result.get('search_query', query),  # Добавляем search_query
+                'full_query': result.get('full_query', query)  # Добавляем full_query
             }
             
             formatted_results.append(formatted_result)

@@ -14,7 +14,6 @@ function escapeSqlLike(v) {
 function normalizeStr(s) {
   if (!s) return "";
   return s.toLowerCase().trim()
-    .replace(/м/g, "m") // кириллическая м -> m
     .replace(/[×хx]/g, "x") // ×/х/x -> x
     .replace(/\s+/g, " ")
     .replace(/din\s*([0-9]+)/g, (_m, p1) => `din${p1}`)
@@ -33,6 +32,18 @@ function mxlVariants(d, l) {
   const D = canonDiameter(d), L = canonLength(l);
   if (!D || !L) return [];
   
+  // Специальная обработка для уголков (формат 50x50x40)
+  if (D.includes('x') && !D.startsWith('M')) {
+    // Это уголок, возвращаем как есть
+    const xs = ["x", "х", "×"];
+    const out = [];
+    for (const X of xs) {
+      out.push(D.replace(/x/g, X), D.replace(/х/g, X), D.replace(/×/g, X));
+    }
+    return Array.from(new Set(out));
+  }
+  
+  // Обычная обработка для болтов/винтов
   const dLat = D, dCyr = D.replace(/^M/, "М");
   const xs = ["x", "х", "×", "-"];
   const out = [];
@@ -41,30 +52,230 @@ function mxlVariants(d, l) {
     out.push(`${dLat}${X}${L}`, `${dLat} ${X} ${L}`, `${dCyr}${X}${L}`, `${dCyr} ${X} ${L}`);
   }
   out.push(`${dLat}${L}`, `${dCyr}${L}`);
+
+  // Дополнительно: если диаметр десятичный, генерируем варианты по дробной части (напр. 4.2 -> 2x90)
+  const decimalMatch = D.match(/^(\d+)[\.,](\d+)$/);
+  if (decimalMatch) {
+    const fractional = decimalMatch[2];
+    const altTokens = [
+      `${fractional}x${L}`,
+      `${fractional} x ${L}`,
+      `${fractional}х${L}`,
+      `${fractional} х ${L}`,
+      `${fractional}×${L}`,
+      `${fractional} × ${L}`
+    ];
+    out.push(...altTokens);
+  }
   
   return Array.from(new Set(out));
 }
 
-// Расширенный список негативных типов
-const NEGATIVE_TYPES = [
-  "гайк", "шайб", "саморез", "дюбел", "штанг", "шпил", "анкер", "дюбель",
-  "шуруп", "анкер", "крюк", "блок", "вертлюг", "трос"
-];
+// ---------- РАНЖИРОВАНИЕ ----------
 
-// Простая мягкая валидация по name
-function softValidateByName(name, want) {
-  const nm = normalizeStr(name);
+// Интерфейсы для типизации
+interface MatchAnalysis {
+  type_match: boolean;
+  standard_match: boolean;
+  size_match: boolean;
+  coating_match: boolean;
+  matched_tokens: string[];
+  explanation: string[];
+}
+
+interface ProbabilityData {
+  probability: number;
+  explanation: string;
+}
+
+interface RankingTokens {
+  typeTok: string | null;
+  stdToks: string[];
+  mxlToks: string[];
+  coatToks: string[];
+}
+
+// Функция для определения причины совпадения
+function getMatchReason(name: string, tokens: RankingTokens): string {
+  const n = normalizeStr(name);
   
-  if (want.typeTok && !nm.includes(want.typeTok)) return false;
-  if (want.stdToks.length && !want.stdToks.some(t => nm.includes(t))) return false;
+  if (tokens.typeTok && n.includes(tokens.typeTok) && 
+      tokens.mxlToks.some(t => n.includes(normalizeStr(t)))) {
+    return 'Точное совпадение типа и размеров';
+  }
   
-  let ok = 0;
-  if (want.mxlToks.length && want.mxlToks.some(t => nm.includes(normalizeStr(t)))) ok++;
-  if (want.coatToks.length && want.coatToks.some(t => nm.includes(normalizeStr(t)))) ok++;
-  if (want.materialToks.length && want.materialToks.some(t => nm.includes(normalizeStr(t)))) ok++;
+  if (tokens.typeTok && n.includes(tokens.typeTok)) {
+    return 'Совпадение типа детали';
+  }
   
-  // требуем как минимум mxl или материал/покрытие
-  return ok >= 1;
+  if (tokens.stdToks.some(t => n.includes(t))) {
+    return 'Совпадение стандарта';
+  }
+  
+  if (tokens.mxlToks.some(t => n.includes(normalizeStr(t)))) {
+    return 'Совпадение размеров';
+  }
+  
+  if (tokens.coatToks.some(t => n.includes(normalizeStr(t)))) {
+    return 'Совпадение покрытия';
+  }
+  
+  return 'Частичное совпадение по названию';
+}
+
+// Функция для детального анализа совпадений
+function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
+  const n = normalizeStr(name);
+  const analysis: MatchAnalysis = {
+    type_match: false,
+    standard_match: false,
+    size_match: false,
+    coating_match: false,
+    matched_tokens: [],
+    explanation: []
+  };
+  
+  // Проверяем совпадение типа
+  if (tokens.typeTok && n.includes(tokens.typeTok)) {
+    analysis.type_match = true;
+    analysis.matched_tokens.push(tokens.typeTok);
+    analysis.explanation.push(`✅ Совпадение типа: "${tokens.typeTok}"`);
+  }
+  
+  // Проверяем совпадение стандарта
+  const matchedStandards = tokens.stdToks.filter(t => n.includes(t));
+  if (matchedStandards.length > 0) {
+    analysis.standard_match = true;
+    analysis.matched_tokens.push(...matchedStandards);
+    analysis.explanation.push(`✅ Совпадение стандарта: "${matchedStandards.join(', ')}"`);
+  }
+  
+  // Проверяем совпадение размеров
+  const matchedSizes = tokens.mxlToks.filter(t => n.includes(normalizeStr(t)));
+  if (matchedSizes.length > 0) {
+    analysis.size_match = true;
+    analysis.matched_tokens.push(...matchedSizes);
+    analysis.explanation.push(`✅ Совпадение размеров: "${matchedSizes.join(', ')}"`);
+  }
+  
+  // Проверяем совпадение покрытия
+  const matchedCoatings = tokens.coatToks.filter(t => n.includes(normalizeStr(t)));
+  if (matchedCoatings.length > 0) {
+    analysis.coating_match = true;
+    analysis.matched_tokens.push(...matchedCoatings);
+    analysis.explanation.push(`✅ Совпадение покрытия: "${matchedCoatings.join(', ')}"`);
+  }
+  
+  return analysis;
+}
+
+// Функция для вычисления probability_percent с весами
+function calculateProbability(analysis: MatchAnalysis): ProbabilityData {
+  let totalScore = 0;
+  const weights = {
+    type: 25,        // 25% за тип детали
+    standard: 40,    // 40% за стандарт DIN
+    size: 30,        // 30% за точные размеры
+    coating: 15      // 15% за покрытие
+  };
+  
+  const explanation = [...analysis.explanation];
+  
+  // Базовые очки за каждый тип совпадения
+  if (analysis.type_match) {
+    totalScore += weights.type;
+    explanation.push(`📊 Вклад типа: +${weights.type}%`);
+  }
+  
+  if (analysis.standard_match) {
+    totalScore += weights.standard;
+    explanation.push(`📊 Вклад стандарта: +${weights.standard}%`);
+  }
+  
+  if (analysis.size_match) {
+    totalScore += weights.size;
+    explanation.push(`📊 Вклад размеров: +${weights.size}%`);
+  }
+  
+  if (analysis.coating_match) {
+    totalScore += weights.coating;
+    explanation.push(`📊 Вклад покрытия: +${weights.coating}%`);
+  }
+  
+  // Бонусы за комбинации
+  if (analysis.standard_match && analysis.size_match) {
+    const bonus = 15;
+    totalScore += bonus;
+    explanation.push(`🎯 Бонус за стандарт + размеры: +${bonus}%`);
+  }
+  
+  if (analysis.type_match && analysis.size_match) {
+    const bonus = 10;
+    totalScore += bonus;
+    explanation.push(`🎯 Бонус за тип + размеры: +${bonus}%`);
+  }
+  
+  if (analysis.type_match && analysis.standard_match && analysis.size_match) {
+    const bonus = 20;
+    totalScore += bonus;
+    explanation.push(`🎯 Бонус за полное совпадение: +${bonus}%`);
+  }
+  
+  // Ограничения согласно требованиям
+  if (analysis.standard_match && analysis.size_match) {
+    // Если совпали и стандарт, и размеры, вероятность должна быть не меньше 80-90%
+    totalScore = Math.max(totalScore, 80);
+    if (totalScore > 80) {
+      explanation.push(`🔒 Минимальная вероятность для стандарт+размеры: 80%`);
+    }
+  } else if (analysis.type_match && !analysis.size_match && !analysis.standard_match) {
+    // Если совпал только тип без размеров и стандарта — не более 40%
+    totalScore = Math.min(totalScore, 40);
+    explanation.push(`🔒 Максимальная вероятность для только типа: 40%`);
+  } else if (analysis.coating_match && !analysis.type_match && !analysis.size_match && !analysis.standard_match) {
+    // Если совпало только покрытие — не более 20%
+    totalScore = Math.min(totalScore, 20);
+    explanation.push(`🔒 Максимальная вероятность для только покрытия: 20%`);
+  }
+  
+  // Нормализация в диапазон 0-100%
+  const probability = Math.max(0, Math.min(100, Math.round(totalScore)));
+  
+  explanation.push(`📈 Итоговая вероятность: ${probability}%`);
+  
+  // Логирование для отладки
+  console.log("🔍 calculateProbability: Детали расчета:", {
+    totalScore,
+    probability,
+    type_match: analysis.type_match,
+    standard_match: analysis.standard_match,
+    size_match: analysis.size_match,
+    coating_match: analysis.coating_match
+  });
+  
+  return {
+    probability,
+    explanation: explanation.join('\n')
+  };
+}
+
+// Основная функция ранжирования
+function rankResults(results: any[], tokens: RankingTokens, search_query: string) {
+  return results.map(it => {
+    const analysis = analyzeMatches(it.name || "", tokens);
+    const probabilityData = calculateProbability(analysis);
+    
+    return {
+      ...it,
+      relevance_score: probabilityData.probability,
+      probability_percent: probabilityData.probability,
+      match_reason: getMatchReason(it.name || "", tokens),
+      explanation: probabilityData.explanation,
+      matched_tokens: analysis.matched_tokens,
+      search_query: search_query,
+      full_query: search_query
+    };
+  }).sort((a, b) => b.probability_percent - a.probability_percent);
 }
 
 serve(async (req) => {
@@ -86,203 +297,140 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
     );
 
-    // ---- подготавливаем токены из intent ----
+    // ---- ПОИСК ПО ПРИОРИТЕТУ ----
     
-    // Тип детали (универсальный)
+    // Тип детали
     const typeTok = user_intent?.type ? normalizeStr(user_intent.type) : null;
     
-    // Стандарты (универсальные)
+    // Стандарты
     const stdToks = [];
     if (user_intent?.standard) {
       const standard = user_intent.standard.toLowerCase();
       stdToks.push(standard);
-      
-      // Добавляем варианты записи стандарта
       if (standard.includes("din")) {
         stdToks.push(standard.replace(/\s+/g, "")); // DIN965
         stdToks.push(standard.replace(/\s+/g, " ")); // DIN 965
       }
-      if (standard.includes("iso")) {
-        stdToks.push(standard.replace(/\s+/g, "")); // ISO7380
-        stdToks.push(standard.replace(/\s+/g, " ")); // ISO 7380
-      }
     }
     
-    // Размеры (диаметр x длина)
+    // Размеры
     const mxlToks = mxlVariants(user_intent?.diameter, user_intent?.length);
     
-    // Покрытия (универсальные)
+    // Покрытия
     const coatToks = [];
     if (user_intent?.coating) {
       const coating = user_intent.coating.toLowerCase();
       coatToks.push(coating);
-      
-      // Добавляем варианты записи покрытия
       if (coating.includes("цинк")) {
         coatToks.push("цинк", "оцинк", "оцинкованный");
       }
-      if (coating.includes("хром")) {
-        coatToks.push("хром", "хромированный");
-      }
-      if (coating.includes("крашен")) {
-        coatToks.push("крашен", "крашеный");
-      }
-    }
-    
-    // Материалы (универсальные)
-    const materialToks = [];
-    if (user_intent?.material) {
-      const material = user_intent.material.toLowerCase();
-      materialToks.push(material);
-      
-      // Добавляем варианты записи материала
-      if (material.includes("нержавеющая")) {
-        materialToks.push("нержавеющая", "нержавейка", "a2", "a4");
-      }
-      if (material.includes("сталь")) {
-        materialToks.push("сталь", "8.8", "10.9", "12.9");
-      }
-    }
-    
-    // Класс прочности
-    const gradeToks = [];
-    if (user_intent?.grade) {
-      const grade = user_intent.grade.toLowerCase();
-      gradeToks.push(grade);
     }
 
     console.log('🔍 FastenerSearch: Подготовленные токены:', {
-      typeTok, stdToks, mxlToks, coatToks, materialToks, gradeToks
+      typeTok, stdToks, mxlToks, coatToks
     });
 
-    // ---- ШАГ 1. Строгий AND по name ----
-    let q = supabase.from("parts_catalog").select("*");
-    
-    // Исключаем негативные типы
-    for (const neg of NEGATIVE_TYPES) {
-      q = q.not("name", "ilike", `%${neg}%`).not("type", "ilike", `%${neg}%`);
+    let results = [];
+
+    // ---- ШАГ 1: Векторный поиск по типу + размеры ----
+    if (typeTok && mxlToks.length > 0) {
+      console.log("🔍 Шаг 1: Векторный поиск по типу + размеры");
+      
+      // Создаем поисковый запрос для векторного поиска (websearch, русская морфология)
+      const searchQuery = [typeTok, ...mxlToks].join(" ");
+      console.log("🔍 Векторный запрос:", searchQuery);
+      
+      const { data: step1Results, error } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .textSearch("search_vector", searchQuery, { config: "russian", type: "websearch" })
+        .limit(20);
+      
+      if (error) console.error("Шаг 1 ошибка:", error);
+      
+      results = step1Results || [];
+      console.log("🔍 Шаг 1 найдено:", results.length);
     }
-    
-    // Тип детали
-    if (typeTok) {
-      q = q.ilike("name", `%${escapeSqlLike(typeTok)}%`);
+
+    // ---- ШАГ 2: Векторный поиск только по типу ----
+    if (results.length === 0 && typeTok) {
+      console.log("🔍 Шаг 2: Векторный поиск только по типу");
+      
+      const searchQuery = typeTok;
+      console.log("🔍 Векторный запрос:", searchQuery);
+      
+      const { data: step2Results, error } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .textSearch("search_vector", searchQuery, { config: "russian", type: "websearch" })
+        .limit(20);
+      
+      if (error) console.error("Шаг 2 ошибка:", error);
+      
+      results = step2Results || [];
+      console.log("🔍 Шаг 2 найдено:", results.length);
     }
-    
-    // Стандарты (OR)
-    if (stdToks.length) {
+
+    // ---- ШАГ 3: Векторный поиск по размеру ----
+    if (results.length === 0 && mxlToks.length > 0) {
+      console.log("🔍 Шаг 3: Векторный поиск по размеру");
+      
+      const searchQuery = mxlToks.join(" ");
+      console.log("🔍 Векторный запрос:", searchQuery);
+      
+      const { data: step3Results, error } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .textSearch("search_vector", searchQuery, { config: "russian", type: "websearch" })
+        .limit(20);
+      
+      if (error) console.error("Шаг 3 ошибка:", error);
+      
+      results = step3Results || [];
+      console.log("🔍 Шаг 3 найдено:", results.length);
+    }
+
+    // ---- ШАГ 4: Поиск по стандарту ----
+    if (results.length === 0 && stdToks.length > 0) {
+      console.log("🔍 Шаг 4: Поиск по стандарту");
+      
       const stdConds = stdToks.map(t => `name.ilike.%${escapeSqlLike(t)}%`).join(",");
-      q = q.or(stdConds);
+      
+      const { data: step4Results, error } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .or(stdConds)
+        .limit(20);
+      
+      if (error) console.error("Шаг 4 ошибка:", error);
+      
+      results = step4Results || [];
+      console.log("🔍 Шаг 4 найдено:", results.length);
     }
-    
-    // Размеры (OR)
-    if (mxlToks.length) {
-      const mxlConds = mxlToks.map(t => `name.ilike.%${escapeSqlLike(t)}%`).join(",");
-      q = q.or(mxlConds);
-    }
-    
-    // Покрытия (OR)
-    if (coatToks.length) {
+
+    // ---- ШАГ 5: Поиск по покрытию ----
+    if (results.length === 0 && coatToks.length > 0) {
+      console.log("🔍 Шаг 5: Поиск по покрытию");
+      
       const coatConds = coatToks.map(t => `name.ilike.%${escapeSqlLike(t)}%`).join(",");
-      q = q.or(coatConds);
-    }
-    
-    // Материалы (OR)
-    if (materialToks.length) {
-      const materialConds = materialToks.map(t => `name.ilike.%${escapeSqlLike(t)}%`).join(",");
-      q = q.or(materialConds);
-    }
-    
-    // Классы прочности (OR)
-    if (gradeToks.length) {
-      const gradeConds = gradeToks.map(t => `name.ilike.%${escapeSqlLike(t)}%`).join(",");
-      q = q.or(gradeConds);
+      
+      const { data: step5Results, error } = await supabase
+        .from("parts_catalog")
+        .select("*")
+        .or(coatConds)
+        .limit(20);
+      
+      if (error) console.error("Шаг 5 ошибка:", error);
+      
+      results = step5Results || [];
+      console.log("🔍 Шаг 5 найдено:", results.length);
     }
 
-    const { data: strictData, error: strictErr } = await q.limit(200);
-    if (strictErr) console.error("strict AND err:", strictErr);
-    
-    let results = (strictData || []).filter(r => softValidateByName(r.name || "", {
-      typeTok,
-      stdToks,
-      mxlToks,
-      coatToks,
-      materialToks
-    }));
-    
-    console.log("🔍 FastenerSearch: Строгий AND найден:", results.length);
-
-    // ---- ШАГ 2. Расслабленный OR (если строгий поиск не дал результатов) ----
-    if (!results.length) {
-      const orConds = [];
-      
-      if (typeTok) orConds.push(`name.ilike.%${escapeSqlLike(typeTok)}%`);
-      if (stdToks.length) {
-        for (const t of stdToks) orConds.push(`name.ilike.%${escapeSqlLike(t)}%`);
-      }
-      for (const t of mxlToks) orConds.push(`name.ilike.%${escapeSqlLike(t)}%`);
-      for (const t of coatToks) orConds.push(`name.ilike.%${escapeSqlLike(t)}%`);
-      for (const t of materialToks) orConds.push(`name.ilike.%${escapeSqlLike(t)}%`);
-      for (const t of gradeToks) orConds.push(`name.ilike.%${escapeSqlLike(t)}%`);
-      
-      let qb = supabase.from("parts_catalog").select("*");
-      
-      // Исключаем негативные типы
-      for (const neg of NEGATIVE_TYPES) {
-        qb = qb.not("name", "ilike", `%${neg}%`).not("type", "ilike", `%${neg}%`);
-      }
-      
-      if (orConds.length) {
-        qb = qb.or(orConds.join(","));
-      }
-      
-      const { data: looseData, error: looseErr } = await qb.limit(200);
-      if (looseErr) console.error("loose OR err:", looseErr);
-      
-      results = (looseData || []).filter(r => softValidateByName(r.name || "", {
-        typeTok,
-        stdToks,
-        mxlToks,
-        coatToks,
-        materialToks
-      }));
-      
-      console.log("🔍 FastenerSearch: Расслабленный OR найден:", results.length);
-    }
+    console.log("🔍 FastenerSearch: Итого найдено результатов:", results.length);
 
     // ---- Ранжирование результатов ----
-    const rank = (name) => {
-      const n = normalizeStr(name);
-      let s = 0;
-      
-      // Тип детали (высший приоритет)
-      if (typeTok && n.includes(typeTok)) s += 10;
-      
-      // Стандарт (высокий приоритет)
-      if (stdToks.some(t => n.includes(t))) s += 8;
-      
-      // Размеры (высокий приоритет)
-      if (mxlToks.some(t => n.includes(normalizeStr(t)))) s += 7;
-      
-      // Класс прочности (средний приоритет)
-      if (gradeToks.some(t => n.includes(t))) s += 6;
-      
-      // Материал (средний приоритет)
-      if (materialToks.some(t => n.includes(normalizeStr(t)))) s += 5;
-      
-      // Покрытие (низкий приоритет)
-      if (coatToks.some(t => n.includes(normalizeStr(t)))) s += 3;
-      
-      return s;
-    };
-
-    const ranked = results.map(it => ({
-      ...it,
-      relevance_score: rank(it.name || ""),
-      probability_percent: Math.min(rank(it.name || "") * 10, 100), // Преобразуем в проценты
-      match_reason: getMatchReason(it.name || "", {
-        typeTok, stdToks, mxlToks, coatToks, materialToks, gradeToks
-      })
-    })).sort((a, b) => b.relevance_score - a.relevance_score);
+    const tokens: RankingTokens = { typeTok, stdToks, mxlToks, coatToks };
+    const ranked = rankResults(results, tokens, search_query);
 
     console.log("🔍 FastenerSearch: Отранжировано результатов:", ranked.length);
     if (ranked.length > 0) {
@@ -291,9 +439,22 @@ serve(async (req) => {
           name: r.name, 
           sku: r.sku, 
           score: r.relevance_score,
+          probability_percent: r.probability_percent,
           reason: r.match_reason 
         }))
       );
+      
+      // Детальное логирование первого результата для отладки
+      const firstResult = ranked[0];
+      console.log("🔍 FastenerSearch: Детали первого результата:", {
+        name: firstResult.name,
+        sku: firstResult.sku,
+        probability_percent: firstResult.probability_percent,
+        relevance_score: firstResult.relevance_score,
+        match_reason: firstResult.match_reason,
+        explanation: firstResult.explanation,
+        matched_tokens: firstResult.matched_tokens
+      });
     }
 
     return new Response(JSON.stringify({
@@ -302,7 +463,7 @@ serve(async (req) => {
         query_type: user_intent?.is_simple_parsed ? 'simple' : 'complex',
         total_results: ranked.length,
         search_time_ms: Date.now(),
-        used_fallback: results.length === 0
+        used_fallback: false
       }
     }), {
       headers: {
@@ -326,39 +487,3 @@ serve(async (req) => {
     });
   }
 });
-
-// Функция для определения причины совпадения
-function getMatchReason(name, tokens) {
-  const n = normalizeStr(name);
-  
-  if (tokens.typeTok && n.includes(tokens.typeTok) && 
-      tokens.mxlToks.some(t => n.includes(normalizeStr(t)))) {
-    return 'Точное совпадение типа и размеров';
-  }
-  
-  if (tokens.typeTok && n.includes(tokens.typeTok)) {
-    return 'Совпадение типа детали';
-  }
-  
-  if (tokens.stdToks.some(t => n.includes(t))) {
-    return 'Совпадение стандарта';
-  }
-  
-  if (tokens.mxlToks.some(t => n.includes(normalizeStr(t)))) {
-    return 'Совпадение размеров';
-  }
-  
-  if (tokens.gradeToks.some(t => n.includes(t))) {
-    return 'Совпадение класса прочности';
-  }
-  
-  if (tokens.materialToks.some(t => n.includes(normalizeStr(t)))) {
-    return 'Совпадение материала';
-  }
-  
-  if (tokens.coatToks.some(t => n.includes(normalizeStr(t)))) {
-    return 'Совпадение покрытия';
-  }
-  
-  return 'Частичное совпадение по названию';
-}

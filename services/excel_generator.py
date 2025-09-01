@@ -104,6 +104,25 @@ class ExcelGenerator:
             
             # Поисковый запрос (что искали для этой позиции)
             search_query = item.get('full_query', item.get('search_query', ''))
+            if not search_query:
+                # Если нет search_query, используем user_intent для создания поискового запроса
+                user_intent = item.get('user_intent', {})
+                if user_intent:
+                    type_part = user_intent.get('type', '')
+                    diameter_part = user_intent.get('diameter', '')
+                    length_part = user_intent.get('length', '')
+                    coating_part = user_intent.get('coating', '')
+                    
+                    parts = []
+                    if type_part: parts.append(type_part)
+                    if diameter_part: parts.append(diameter_part)
+                    if length_part: parts.append(length_part)
+                    if coating_part: parts.append(coating_part)
+                    
+                    search_query = ' '.join(parts) if parts else 'Поиск по базе'
+                else:
+                    search_query = 'Поиск по базе'
+            
             self.worksheet.cell(row=row, column=4, value=search_query)
             
             # Количество запрашиваемых деталей
@@ -130,7 +149,13 @@ class ExcelGenerator:
             self.worksheet.cell(row=row, column=11, value=relevance)
             
             # Вероятность (процент уверенности бота)
-            confidence = item.get('confidence_score', self._calculate_confidence(item, row, len(search_results)))
+            # Используем новое поле probability_percent, если оно есть
+            probability = item.get('probability_percent')
+            if probability is not None:
+                confidence = probability
+            else:
+                # Fallback на старый метод
+                confidence = item.get('confidence_score', self._calculate_confidence(item, row, len(search_results)))
             self.worksheet.cell(row=row, column=12, value=f"{confidence}%")
             
             # Вопросы для уточнения (если уверенность < 90%)

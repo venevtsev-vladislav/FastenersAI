@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  fastenersai:
+    build: .
+    container_name: fastenersai-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./.env:/app/.env:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - fastenersai-network
+
+  # Redis для кэширования (опционально)
+  redis:
+    image: redis:7-alpine
+    container_name: fastenersai-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fastenersai-network
+
+  # PostgreSQL для локальной разработки (опционально)
+  postgres:
+    image: postgres:15-alpine
+    container_name: fastenersai-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=fastenersai
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - fastenersai-network
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  fastenersai-network:
+    driver: bridge

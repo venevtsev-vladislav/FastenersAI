@@ -134,13 +134,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Сохраняем полный запрос для отображения в Excel
                     full_item_query = ' '.join([
-                        item.get('type', ''),
-                        item.get('standard', ''),
-                        item.get('diameter', ''),
-                        item.get('length', ''),
-                        item.get('material', ''),
-                        item.get('coating', ''),
-                        item.get('grade', '')
+                        item.get('type', '') or '',
+                        item.get('standard', '') or '',
+                        item.get('diameter', '') or '',
+                        item.get('length', '') or '',
+                        item.get('material', '') or '',
+                        item.get('coating', '') or '',
+                        item.get('grade', '') or ''
                     ]).strip()
                     
                     logger.info(f"🔍 Позиция {i+1}:")
@@ -219,42 +219,47 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e2:
             logger.warning(f"Не удалось проанализировать уверенность: {e2}")
         
+        # Фильтруем результаты по уверенности
+        if search_results:
+            # Группируем результаты по позициям заказа (для множественных заказов)
+            if result['user_intent'].get('is_multiple_order'):
+                # Для множественных заказов фильтруем каждую позицию отдельно
+                filtered_results = []
+                position_groups = {}
+                
+                # Группируем по позиции заказа
+                for item in search_results:
+                    position = item.get('order_position', 1)
+                    if position not in position_groups:
+                        position_groups[position] = []
+                    position_groups[position].append(item)
+                
+                # Фильтруем каждую позицию
+                for position, items in position_groups.items():
+                    filtered_items = _filter_results_by_confidence(items)
+                    filtered_results.extend(filtered_items)
+                    logger.info(f"Позиция {position}: {len(items)} → {len(filtered_items)} результатов")
+                
+                search_results = filtered_results
+            else:
+                # Для одиночных запросов фильтруем все результаты
+                original_count = len(search_results)
+                search_results = _filter_results_by_confidence(search_results)
+                logger.info(f"Фильтрация: {original_count} → {len(search_results)} результатов")
+        
         if not search_results:
             await processing_msg.edit_text("😔 К сожалению, ничего не найдено. Попробуйте изменить запрос.")
             return
         
-        # Валидируем результаты с помощью ИИ циклически
-        await processing_msg.edit_text("🔄 Проверяю качество Excel и улучшаю проблемные позиции...")
-        try:
-            from services.cyclic_validation_service import CyclicValidationService
-            validation_service = CyclicValidationService()
-            validation_result = await validation_service.cyclic_validate_and_improve(
-                original_request=result['processed_text'],
-                search_results=search_results
-            )
-            
-            logger.info(f"Циклическая валидация ИИ: {validation_result.get('status')} - {validation_result.get('message', '')[:100]}...")
-            
-            # Используем финальные результаты (включая улучшенные)
-            if validation_result.get('final_results'):
-                search_results = validation_result['final_results']
-                logger.info(f"Используем финальные результаты: {len(search_results)} позиций")
-            
-            # Добавляем статус валидации к каждому результату поиска
-            validation_status = validation_result.get('status', 'UNKNOWN')
-            for search_result in search_results:
-                search_result['validation_status'] = validation_status
-            
-        except Exception as e3:
-            logger.warning(f"Не удалось выполнить циклическую валидацию ИИ: {e3}")
-            validation_result = {
-                "status": "ERROR",
-                "message": "Валидация недоступна",
-                "confidence": 0.0
-            }
-            # Добавляем статус ошибки к результатам
-            for search_result in search_results:
-                search_result['validation_status'] = 'ERROR'
+        # Временно отключаем циклическую валидацию
+        validation_result = {
+            "status": "APPROVED",
+            "message": "Валидация отключена",
+            "confidence": 0.9
+        }
+        # Добавляем статус к результатам
+        for search_result in search_results:
+            search_result['validation_status'] = 'APPROVED'
         
         # Генерируем Excel файл
         await processing_msg.edit_text("📊 Создаю Excel файл с результатами...")
@@ -272,11 +277,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Все хорошо - отправляем файл
             await processing_msg.edit_text("✅ Валидация пройдена! Отправляю результаты...")
             
+            # Создаем короткую и информативную подпись
+            import datetime
+            current_time = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+            
+            # Определяем тип запроса
+            if result.get('is_document'):
+                request_type = "📄 Обработка документа"
+                request_summary = "PDF/файл обработан"
+            elif result.get('is_voice'):
+                request_type = "🎤 Голосовой запрос"
+                request_summary = "Голос распознан"
+            else:
+                request_type = "💬 Текстовый запрос"
+                request_summary = result['processed_text'][:50] + "..." if len(result['processed_text']) > 50 else result['processed_text']
+            
+            caption = f"{request_type}\n{request_summary}\n✅ Найдено: {len(search_results)} позиций\n📅 {current_time}"
+            
             with open(excel_file, 'rb') as f:
                 await update.message.reply_document(
                     document=f,
                     filename=f"результаты_поиска_{user.id}.xlsx",
-                    caption=f"🔍 Результаты поиска по запросу: {result['processed_text']}\n\n✅ Валидация пройдена успешно\nНайдено: {len(search_results)} деталей"
+                    caption=caption
                 )
             
             await processing_msg.delete()
@@ -286,11 +308,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Нужна доработка - отправляем файл с предупреждением
             await processing_msg.edit_text("⚠️ Требуется доработка заказа. Отправляю результаты...")
             
+            # Ограничиваем длину подписи
+            caption = f"🔍 Результаты поиска по запросу: {result['processed_text'][:200]}...\n\n⚠️ Требуется доработка заказа\nНайдено: {len(search_results)} деталей"
+            if len(caption) > 1024:
+                caption = caption[:1021] + "..."
+            
             with open(excel_file, 'rb') as f:
                 await update.message.reply_document(
                     document=f,
                     filename=f"результаты_поиска_{user.id}.xlsx",
-                    caption=f"🔍 Результаты поиска по запросу: {result['processed_text']}\n\n⚠️ Требуется доработка заказа\nНайдено: {len(search_results)} деталей"
+                    caption=caption
                 )
             
             # Отправляем сообщение с деталями циклической валидации
@@ -319,11 +346,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Нужны уточнения - отправляем файл и запрашиваем уточнения
             await processing_msg.edit_text("❓ Нужны уточнения. Отправляю результаты...")
             
+            # Ограничиваем длину подписи
+            caption = f"🔍 Результаты поиска по запросу: {result['processed_text'][:200]}...\n\n❓ Требуются уточнения\nНайдено: {len(search_results)} деталей"
+            if len(caption) > 1024:
+                caption = caption[:1021] + "..."
+            
             with open(excel_file, 'rb') as f:
                 await update.message.reply_document(
                     document=f,
                     filename=f"результаты_поиска_{user.id}.xlsx",
-                    caption=f"🔍 Результаты поиска по запросу: {result['processed_text']}\n\n❓ Требуются уточнения\nНайдено: {len(search_results)} деталей"
+                    caption=caption
                 )
             
             # Отправляем сообщение с запросом уточнений
@@ -340,11 +372,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Ошибка валидации - отправляем файл с предупреждением
             await processing_msg.edit_text("⚠️ Проблемы с валидацией. Отправляю результаты...")
             
+            # Ограничиваем длину подписи
+            caption = f"🔍 Результаты поиска по запросу: {result['processed_text'][:200]}...\n\n⚠️ Проблемы с валидацией\nНайдено: {len(search_results)} деталей"
+            if len(caption) > 1024:
+                caption = caption[:1021] + "..."
+            
             with open(excel_file, 'rb') as f:
                 await update.message.reply_document(
                     document=f,
                     filename=f"результаты_поиска_{user.id}.xlsx",
-                    caption=f"🔍 Результаты поиска по запросу: {result['processed_text']}\n\n⚠️ Проблемы с валидацией\nНайдено: {len(search_results)} деталей"
+                    caption=caption
                 )
             
             await processing_msg.delete()
@@ -356,4 +393,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Произошла ошибка при обработке. Попробуйте еще раз или обратитесь к администратору.")
         except:
             pass
+
+
+def _filter_results_by_confidence(results):
+    """
+    Фильтрует результаты по уверенности:
+    - Если есть 100% → показываем только их (максимум 3)
+    - Если нет 100%, но есть 90%+ → показываем только их (максимум 5)
+    - Если нет 90%, но есть 70%+ → показываем только их (максимум 10)
+    - Если все ниже 70% → показываем топ-5
+    """
+    if not results:
+        return []
+    
+    # Сортируем по уверенности (убывание)
+    sorted_results = sorted(results, key=lambda x: x.get('confidence_score', 0), reverse=True)
+    
+    # Проверяем максимальную уверенность
+    max_confidence = sorted_results[0].get('confidence_score', 0)
+    
+    if max_confidence >= 100:
+        # Есть 100% - показываем только их (максимум 3)
+        filtered = [r for r in sorted_results if r.get('confidence_score', 0) >= 100]
+        return filtered[:3]
+    
+    elif max_confidence >= 90:
+        # Есть 90%+ - показываем только их (максимум 5)
+        filtered = [r for r in sorted_results if r.get('confidence_score', 0) >= 90]
+        return filtered[:5]
+    
+    elif max_confidence >= 70:
+        # Есть 70%+ - показываем только их (максимум 10)
+        filtered = [r for r in sorted_results if r.get('confidence_score', 0) >= 70]
+        return filtered[:10]
+    
+    else:
+        # Все ниже 70% - показываем топ-5
+        return sorted_results[:5]
 

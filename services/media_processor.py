@@ -166,10 +166,66 @@ class MediaProcessor:
             if not local_file_path:
                 return "Ошибка скачивания файла"
             
-            # TODO: Реализовать PDF парсинг через PyPDF2 или pdfplumber
-            # Пока возвращаем заглушку
-            await asyncio.sleep(1)
-            return "PDF файл с технической документацией"
+            # Пытаемся использовать PyPDF2 для извлечения текста
+            try:
+                import PyPDF2
+                
+                with open(local_file_path, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    text = ""
+                    
+                    # Извлекаем текст из всех страниц
+                    for page_num in range(len(pdf_reader.pages)):
+                        page = pdf_reader.pages[page_num]
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+                    
+                    logger.info(f"PDF текст извлечен: {len(text)} символов")
+                    
+                    # Если текст слишком короткий, пробуем альтернативные методы
+                    if len(text.strip()) < 10:
+                        logger.warning(f"PyPDF2 извлек мало текста ({len(text)} символов), пробуем альтернативные методы")
+                        
+                        # Пробуем извлечь текст через pdfplumber (если установлен)
+                        try:
+                            import pdfplumber
+                            with pdfplumber.open(local_file_path) as pdf:
+                                alt_text = ""
+                                for page in pdf.pages:
+                                    page_text = page.extract_text()
+                                    if page_text:
+                                        alt_text += page_text + "\n"
+                                
+                                if len(alt_text.strip()) > len(text.strip()):
+                                    text = alt_text
+                                    logger.info(f"pdfplumber извлек больше текста: {len(text)} символов")
+                        except ImportError:
+                            logger.info("pdfplumber не установлен")
+                        except Exception as plumber_error:
+                            logger.warning(f"pdfplumber не смог извлечь текст: {plumber_error}")
+                    
+                    # Удаляем временный файл
+                    import os
+                    try:
+                        os.remove(local_file_path)
+                        logger.info(f"Временный файл удален: {local_file_path}")
+                    except:
+                        pass
+                    
+                    # Если все еще мало текста, возвращаем информацию о файле
+                    if len(text.strip()) < 10:
+                        logger.warning("Не удалось извлечь текст из PDF, возвращаем информацию о файле")
+                        return f"PDF файл: {os.path.basename(local_file_path)} - не удалось извлечь текст (возможно защищен или содержит изображения)"
+                    
+                    return text.strip()
+                    
+            except ImportError:
+                logger.warning("PyPDF2 не установлен, используем заглушку")
+                return "PDF файл с технической документацией"
+            except Exception as pdf_error:
+                logger.error(f"Ошибка при парсинге PDF: {pdf_error}")
+                return f"Ошибка обработки PDF: {str(pdf_error)}"
             
         except Exception as e:
             logger.error(f"Ошибка при обработке PDF: {e}")

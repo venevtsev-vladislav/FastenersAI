@@ -197,7 +197,7 @@ class SmartParser:
         }
         
         # Определяем тип детали
-        type_keywords = ['винт', 'гайка', 'шайба', 'болт', 'саморез', 'шуруп', 'анкер', 'дюбель']
+        type_keywords = ['винт', 'гайка', 'шайба', 'болт', 'саморез', 'шуруп', 'анкер', 'дюбель', 'уголок']
         for i, part in enumerate(parts):
             if part in type_keywords:
                 result['type'] = part
@@ -223,6 +223,16 @@ class SmartParser:
                 if match:
                     result['diameter'] = match.group(1).upper()
                     result['length'] = f"{match.group(2)} мм"
+                break
+        
+        # Ищем размеры уголков в формате 50×50×40, 50x50x40
+        for i, part in enumerate(parts):
+            if re.search(r'\d+[x×]\d+[x×]\d+', part):
+                # Разделяем на размеры уголка
+                match = re.search(r'(\d+)[x×](\d+)[x×](\d+)', part)
+                if match:
+                    result['diameter'] = f"{match.group(1)}x{match.group(2)}"
+                    result['length'] = f"{match.group(3)} мм"
                 break
         
         # Ищем длину

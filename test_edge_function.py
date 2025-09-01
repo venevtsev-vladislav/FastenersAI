@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Тестовый скрипт для проверки Edge Function напрямую
+Тест для прямого POST запроса к Edge Function
 """
 
-import requests
+import asyncio
+import aiohttp
 import json
 import os
 from dotenv import load_dotenv
@@ -11,127 +12,123 @@ from dotenv import load_dotenv
 # Загружаем переменные окружения
 load_dotenv()
 
-def test_edge_function():
-    """Тестируем Edge Function напрямую"""
+async def test_edge_function():
+    """Тестирует Edge Function напрямую"""
+    print("🧪 Тестирую Edge Function напрямую...")
     
-    # URL Edge Function (замените на ваш)
-    edge_function_url = "https://your-project.supabase.co/functions/v1/fastener-search"
+    # URL Edge Function
+    supabase_url = os.getenv('SUPABASE_URL')
+    edge_function_url = f"{supabase_url}/functions/v1/fastener-search"
     
-    # Тестовые данные
+    # API ключ
+    api_key = os.getenv('SUPABASE_KEY')
+    
+    # Тестовые запросы
     test_cases = [
         {
-            "name": "Тест 1: Болт с user_intent",
-            "data": {
-                "search_query": "болт с грибком М6 на 40, цинкованный",
-                "user_intent": {
-                    "type": "болт",
-                    "diameter": "M6",
-                    "length": "40 мм",
-                    "coating": "цинк"
-                }
+            "name": "DIN 603 Винт мебельный 6 × 40 Zn — 200 шт",
+            "search_query": "DIN 603 Винт мебельный 6 × 40 Zn — 200 шт",
+            "user_intent": {
+                "type": "винт",
+                "standard": "DIN 603",
+                "diameter": "6",
+                "length": "40",
+                "coating": "цинк"
             }
         },
         {
-            "name": "Тест 2: Только search_query",
-            "data": {
-                "search_query": "болт М6 40 цинк",
-                "user_intent": {}
+            "name": "Винт мебельный 640 оцинкованный",
+            "search_query": "винт мебельный 640 оцинкованный",
+            "user_intent": {
+                "type": "винт",
+                "diameter": "6",
+                "length": "40",
+                "coating": "оцинкованный"
             }
         },
         {
-            "name": "Тест 3: Пустой user_intent",
-            "data": {
-                "search_query": "болт М6 40 цинк",
-                "user_intent": None
+            "name": "Болт DIN 965 M8x20 оцинкованный",
+            "search_query": "Болт DIN 965 M8x20 оцинкованный",
+            "user_intent": {
+                "type": "болт",
+                "standard": "DIN 965",
+                "diameter": "M8",
+                "length": "20",
+                "coating": "оцинкованный"
             }
         }
     ]
     
-    print("🧪 Тестируем Edge Function...")
-    print("=" * 50)
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
-    for i, test_case in enumerate(test_cases, 1):
-        print(f"\n🔍 {test_case['name']}")
-        print(f"📤 Отправляем данные: {json.dumps(test_case['data'], ensure_ascii=False, indent=2)}")
-        
-        try:
-            # Отправляем запрос
-            response = requests.post(
-                edge_function_url,
-                json=test_case['data'],
-                headers={
-                    'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {os.getenv("SUPABASE_ANON_KEY")}'
-                },
-                timeout=30
-            )
+    async with aiohttp.ClientSession() as session:
+        for i, test_case in enumerate(test_cases, 1):
+            print(f"\n{'='*60}")
+            print(f"🧪 ТЕСТ {i}: {test_case['name']}")
+            print(f"{'='*60}")
             
-            print(f"📥 Статус ответа: {response.status_code}")
+            payload = {
+                "search_query": test_case["search_query"],
+                "user_intent": test_case["user_intent"]
+            }
             
-            if response.status_code == 200:
-                result = response.json()
-                print(f"✅ Результат: {len(result.get('results', []))} найденных позиций")
-                
-                if result.get('results'):
-                    print("📋 Первые результаты:")
-                    for j, item in enumerate(result['results'][:3], 1):
-                        print(f"  {j}. {item.get('name', 'N/A')} (SKU: {item.get('sku', 'N/A')})")
-                else:
-                    print("❌ Результатов не найдено")
-            else:
-                print(f"❌ Ошибка: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ Ошибка запроса: {e}")
-        
-        print("-" * 30)
-
-def test_supabase_direct():
-    """Тестируем Supabase напрямую"""
-    
-    from supabase import create_client, Client
-    
-    print("\n🔍 Тестируем Supabase напрямую...")
-    print("=" * 50)
-    
-    try:
-        # Создаем клиент
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_ANON_KEY")
-        )
-        
-        # Тестовые запросы
-        test_queries = [
-            "SELECT * FROM parts_catalog WHERE name ILIKE '%болт%' LIMIT 5",
-            "SELECT * FROM parts_catalog WHERE name ILIKE '%M6%' LIMIT 5",
-            "SELECT * FROM parts_catalog WHERE name ILIKE '%цинк%' LIMIT 5"
-        ]
-        
-        for query in test_queries:
-            print(f"\n🔍 Выполняем запрос: {query}")
+            print(f"📤 Отправляю запрос:")
+            print(f"   URL: {edge_function_url}")
+            print(f"   Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
             
             try:
-                result = supabase.rpc('exec_sql', {'sql_query': query}).execute()
-                print(f"✅ Результат: {len(result.data)} строк")
-                
-                if result.data:
-                    for row in result.data[:3]:
-                        print(f"  - {row.get('name', 'N/A')}")
+                async with session.post(edge_function_url, json=payload, headers=headers) as response:
+                    print(f"📥 Получен ответ: {response.status}")
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        print(f"✅ Успешно! Найдено результатов: {len(data.get('results', []))}")
+                        
+                        # Анализируем первые 3 результата
+                        results = data.get('results', [])
+                        for j, result in enumerate(results[:3], 1):
+                            print(f"\n📊 Результат {j}:")
+                            print(f"   Название: {result.get('name', 'N/A')}")
+                            print(f"   SKU: {result.get('sku', 'N/A')}")
+                            print(f"   probability_percent: {result.get('probability_percent', 'N/A')}%")
+                            print(f"   relevance_score: {result.get('relevance_score', 'N/A')}")
+                            print(f"   match_reason: {result.get('match_reason', 'N/A')}")
+                            
+                            # Проверяем explanation
+                            explanation = result.get('explanation', '')
+                            if explanation:
+                                print(f"   explanation:")
+                                for line in explanation.split('\n'):
+                                    if line.strip():
+                                        print(f"     {line}")
+                            
+                            # Проверяем matched_tokens
+                            matched_tokens = result.get('matched_tokens', [])
+                            if matched_tokens:
+                                print(f"   matched_tokens: {matched_tokens}")
+                        
+                        # Статистика по вероятностям
+                        probabilities = [r.get('probability_percent', 0) for r in results]
+                        if probabilities:
+                            print(f"\n📈 Статистика вероятностей:")
+                            print(f"   Минимальная: {min(probabilities)}%")
+                            print(f"   Максимальная: {max(probabilities)}%")
+                            print(f"   Средняя: {sum(probabilities) / len(probabilities):.1f}%")
+                        
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ Ошибка {response.status}: {error_text}")
                         
             except Exception as e:
-                print(f"❌ Ошибка запроса: {e}")
-                
-    except Exception as e:
-        print(f"❌ Ошибка подключения к Supabase: {e}")
+                print(f"❌ Ошибка при запросе: {e}")
+    
+    print(f"\n{'='*60}")
+    print("✅ Тестирование завершено!")
+    print(f"{'='*60}")
 
 if __name__ == "__main__":
-    print("🚀 Запуск тестирования Edge Function и Supabase")
-    
-    # Тестируем Edge Function
-    test_edge_function()
-    
-    # Тестируем Supabase напрямую
-    test_supabase_direct()
-    
-    print("\n✅ Тестирование завершено!")
+    asyncio.run(test_edge_function())

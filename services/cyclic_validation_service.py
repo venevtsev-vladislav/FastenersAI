@@ -50,7 +50,7 @@ class CyclicValidationService:
                 logger.info(f"🔄 Цикл валидации {cycle_count}/{self.max_cycles}")
                 
                 # 1. Создаем Excel для анализа
-                excel_file = await self._create_excel_for_validation(current_results)
+                excel_file = await self._create_excel_for_validation(current_results, original_request)
                 
                 # 2. ИИ анализирует весь Excel файл
                 validation_result = await self._validate_excel_file(
@@ -100,7 +100,7 @@ class CyclicValidationService:
             final_result = {
                 'status': validation_result.get('status', 'UNKNOWN'),
                 'message': validation_result.get('message', ''),
-                'final_results': current_results,
+                'final_results': search_results,  # Используем исходные результаты
                 'cycles_completed': cycle_count,
                 'improvement_history': improvement_history,
                 'max_cycles_reached': cycle_count >= self.max_cycles
@@ -120,11 +120,15 @@ class CyclicValidationService:
                 "max_cycles_reached": False
             }
     
-    async def _create_excel_for_validation(self, search_results: List[Dict[str, Any]]) -> str:
+    async def _create_excel_for_validation(
+        self, 
+        search_results: List[Dict[str, Any]], 
+        user_request: str
+    ) -> str:
         """Создает Excel файл для анализа ИИ"""
         try:
             excel_generator = ExcelGenerator()
-            excel_file = excel_generator.generate_excel(search_results)
+            excel_file = await excel_generator.generate_excel(search_results, user_request)
             logger.info(f"📊 Excel создан для валидации: {excel_file}")
             return excel_file
         except Exception as e:
