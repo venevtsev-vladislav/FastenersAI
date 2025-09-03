@@ -1,3 +1,3 @@
 """
-Tests for the bot
+Тесты для проекта FastenersAI
 """

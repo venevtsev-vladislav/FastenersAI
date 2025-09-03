@@ -1,233 +1,165 @@
 """
-Сервис для обработки медиафайлов (голос, аудио, изображения)
+Сервис для обработки медиа файлов (изображения, голосовые, документы)
 """
 
 import logging
-import asyncio
+import os
+import tempfile
+from typing import Optional, Dict, Any
+from telegram import Message
+from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
 class MediaProcessor:
-    """Класс для обработки медиафайлов"""
+    """Класс для обработки различных типов медиа файлов"""
+    
+    # Поддерживаемые типы файлов
+    SUPPORTED_DOCUMENT_TYPES = ['.xlsx', '.xls', '.pdf']
+    MAX_FILE_SIZE = 1024 * 1024  # 1 MB
     
     def __init__(self):
-        # TODO: Добавить реальные сервисы для обработки медиа
-        pass
+        self.temp_files = []  # Для отслеживания временных файлов
     
-    async def voice_to_text(self, file_path: str) -> str:
-        """Конвертирует голосовое сообщение в текст через OpenAI Whisper"""
+    async def process_media_message(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
+        """Обрабатывает медиа сообщение и возвращает результат"""
         try:
-            logger.info(f"Обработка голосового файла: {file_path}")
-            
-            # Скачиваем файл если это URL
-            local_file_path = await self._download_file(file_path)
-            if not local_file_path:
-                return "Ошибка скачивания файла"
-            
-            # Импортируем OpenAI клиент
-            from openai import AsyncOpenAI
-            from config import OPENAI_API_KEY
-            
-            # Создаем клиент
-            client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            
-            # Открываем локальный файл
-            with open(local_file_path, 'rb') as audio_file:
-                # Отправляем в Whisper API
-                response = await client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="ru"  # Указываем русский язык
-                )
-            
-            # Получаем распознанный текст
-            recognized_text = response.text.strip()
-            logger.info(f"Whisper распознал текст: '{recognized_text}'")
-            
-            # Удаляем временный файл
-            import os
-            try:
-                os.remove(local_file_path)
-                logger.info(f"Временный файл удален: {local_file_path}")
-            except:
-                pass
-            
-            return recognized_text
-            
+            if message.photo:
+                return await self._process_photo(message, context)
+            elif message.voice:
+                return await self._process_voice(message, context)
+            elif message.document:
+                return await self._process_document(message, context)
+            else:
+                logger.warning(f"Неподдерживаемый тип медиа: {message.content_type}")
+                return None
+                
         except Exception as e:
-            logger.error(f"Ошибка при обработке голоса через Whisper: {e}")
-            # Fallback на заглушку
-            return "Ошибка распознавания голоса"
-    
-    async def _download_file(self, file_url: str) -> str:
-        """Скачивает файл по URL и возвращает локальный путь"""
-        try:
-            import aiohttp
-            import tempfile
-            import os
-            
-            # Создаем временный файл
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.oga')
-            temp_path = temp_file.name
-            temp_file.close()
-            
-            logger.info(f"Скачиваю файл в: {temp_path}")
-            
-            # Скачиваем файл
-            async with aiohttp.ClientSession() as session:
-                async with session.get(file_url) as response:
-                    if response.status == 200:
-                        content = await response.read()
-                        
-                        # Записываем в временный файл
-                        with open(temp_path, 'wb') as f:
-                            f.write(content)
-                        
-                        logger.info(f"Файл успешно скачан: {len(content)} байт")
-                        return temp_path
-                    else:
-                        logger.error(f"Ошибка скачивания: {response.status}")
-                        return None
-                        
-        except Exception as e:
-            logger.error(f"Ошибка при скачивании файла: {e}")
+            logger.error(f"Ошибка при обработке медиа: {e}")
             return None
     
-    async def audio_to_text(self, file_path: str) -> str:
-        """Конвертирует аудио файл в текст через OpenAI Whisper"""
+    async def _process_photo(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
+        """Обрабатывает фотографию"""
         try:
-            logger.info(f"Обработка аудио файла: {file_path}")
+            # Берем фото наилучшего качества
+            photo = message.photo[-1]
             
-            # Скачиваем файл если это URL
-            local_file_path = await self._download_file(file_path)
-            if not local_file_path:
-                return "Ошибка скачивания файла"
+            # Скачиваем файл
+            file = await context.bot.get_file(photo.file_id)
             
-            # Импортируем OpenAI клиент
-            from openai import AsyncOpenAI
-            from config import OPENAI_API_KEY
-            
-            # Создаем клиент
-            client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-            
-            # Открываем локальный файл
-            with open(local_file_path, 'rb') as audio_file:
-                # Отправляем в Whisper API
-                response = await client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="ru"
-                )
-            
-            # Получаем распознанный текст
-            recognized_text = response.text.strip()
-            logger.info(f"Whisper распознал аудио: '{recognized_text}'")
-            
-            # Удаляем временный файл
-            import os
-            try:
-                os.remove(local_file_path)
-                logger.info(f"Временный файл удален: {local_file_path}")
-            except:
-                pass
-            
-            return recognized_text
-            
-        except Exception as e:
-            logger.error(f"Ошибка при обработке аудио через Whisper: {e}")
-            return "Ошибка распознавания аудио"
-    
-    async def image_to_text(self, file_path: str) -> str:
-        """Извлекает текст из изображения (OCR)"""
-        try:
-            logger.info(f"Обработка изображения: {file_path}")
-            
-            # Скачиваем файл если это URL
-            local_file_path = await self._download_file(file_path)
-            if not local_file_path:
-                return "Ошибка скачивания файла"
-            
-            # TODO: Реализовать OCR через API (например, Tesseract или облачный сервис)
-            # Пока возвращаем заглушку
-            await asyncio.sleep(1)
-            return "Изображение крепежной детали"
-            
-        except Exception as e:
-            logger.error(f"Ошибка при обработке изображения: {e}")
-            return "Ошибка обработки изображения"
-    
-    async def pdf_to_text(self, file_path: str) -> str:
-        """Извлекает текст из PDF файла"""
-        try:
-            logger.info(f"Обработка PDF файла: {file_path}")
-            
-            # Скачиваем файл если это URL
-            local_file_path = await self._download_file(file_path)
-            if not local_file_path:
-                return "Ошибка скачивания файла"
-            
-            # Пытаемся использовать PyPDF2 для извлечения текста
-            try:
-                import PyPDF2
+            # Создаем временный файл
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+                await file.download_to_drive(temp_file.name)
+                self.temp_files.append(temp_file.name)
                 
-                with open(local_file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)
-                    text = ""
-                    
-                    # Извлекаем текст из всех страниц
-                    for page_num in range(len(pdf_reader.pages)):
-                        page = pdf_reader.pages[page_num]
-                        page_text = page.extract_text()
-                        if page_text:
-                            text += page_text + "\n"
-                    
-                    logger.info(f"PDF текст извлечен: {len(text)} символов")
-                    
-                    # Если текст слишком короткий, пробуем альтернативные методы
-                    if len(text.strip()) < 10:
-                        logger.warning(f"PyPDF2 извлек мало текста ({len(text)} символов), пробуем альтернативные методы")
-                        
-                        # Пробуем извлечь текст через pdfplumber (если установлен)
-                        try:
-                            import pdfplumber
-                            with pdfplumber.open(local_file_path) as pdf:
-                                alt_text = ""
-                                for page in pdf.pages:
-                                    page_text = page.extract_text()
-                                    if page_text:
-                                        alt_text += page_text + "\n"
-                                
-                                if len(alt_text.strip()) > len(text.strip()):
-                                    text = alt_text
-                                    logger.info(f"pdfplumber извлек больше текста: {len(text)} символов")
-                        except ImportError:
-                            logger.info("pdfplumber не установлен")
-                        except Exception as plumber_error:
-                            logger.warning(f"pdfplumber не смог извлечь текст: {plumber_error}")
-                    
-                    # Удаляем временный файл
-                    import os
-                    try:
-                        os.remove(local_file_path)
-                        logger.info(f"Временный файл удален: {local_file_path}")
-                    except:
-                        pass
-                    
-                    # Если все еще мало текста, возвращаем информацию о файле
-                    if len(text.strip()) < 10:
-                        logger.warning("Не удалось извлечь текст из PDF, возвращаем информацию о файле")
-                        return f"PDF файл: {os.path.basename(local_file_path)} - не удалось извлечь текст (возможно защищен или содержит изображения)"
-                    
-                    return text.strip()
-                    
-            except ImportError:
-                logger.warning("PyPDF2 не установлен, используем заглушку")
-                return "PDF файл с технической документацией"
-            except Exception as pdf_error:
-                logger.error(f"Ошибка при парсинге PDF: {pdf_error}")
-                return f"Ошибка обработки PDF: {str(pdf_error)}"
-            
+                logger.info(f"Фото сохранено: {temp_file.name}")
+                
+                # TODO: Здесь можно добавить OCR для извлечения текста из изображения
+                # Пока возвращаем базовую информацию
+                return {
+                    'type': 'photo',
+                    'file_path': temp_file.name,
+                    'file_size': photo.file_size,
+                    'width': photo.width,
+                    'height': photo.height,
+                    'caption': message.caption or '',
+                    'extracted_text': None  # Будет заполнено при добавлении OCR
+                }
+                
         except Exception as e:
-            logger.error(f"Ошибка при обработке PDF: {e}")
-            return "Ошибка обработки PDF"
-
+            logger.error(f"Ошибка при обработке фото: {e}")
+            return None
+    
+    async def _process_voice(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
+        """Обрабатывает голосовое сообщение"""
+        try:
+            voice = message.voice
+            
+            # Скачиваем файл
+            file = await context.bot.get_file(voice.file_id)
+            
+            # Создаем временный файл
+            with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as temp_file:
+                await file.download_to_drive(temp_file.name)
+                self.temp_files.append(temp_file.name)
+                
+                logger.info(f"Голосовое сообщение сохранено: {temp_file.name}")
+                
+                # TODO: Здесь можно добавить распознавание речи (Speech-to-Text)
+                # Пока возвращаем базовую информацию
+                return {
+                    'type': 'voice',
+                    'file_path': temp_file.name,
+                    'file_size': voice.file_size,
+                    'duration': voice.duration,
+                    'transcribed_text': None  # Будет заполнено при добавлении STT
+                }
+                
+        except Exception as e:
+            logger.error(f"Ошибка при обработке голосового сообщения: {e}")
+            return None
+    
+    async def _process_document(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
+        """Обрабатывает документ"""
+        try:
+            document = message.document
+            
+            # Проверяем размер файла
+            if document.file_size and document.file_size > self.MAX_FILE_SIZE:
+                logger.warning(f"Файл слишком большой: {document.file_size} байт")
+                return {
+                    'type': 'document',
+                    'error': f'Файл слишком большой. Максимальный размер: {self.MAX_FILE_SIZE // 1024} KB'
+                }
+            
+            # Проверяем тип файла
+            file_extension = os.path.splitext(document.file_name or '')[-1].lower()
+            if file_extension not in self.SUPPORTED_DOCUMENT_TYPES:
+                logger.warning(f"Неподдерживаемый тип файла: {file_extension}")
+                return {
+                    'type': 'document',
+                    'error': f'Неподдерживаемый тип файла. Поддерживаются: {", ".join(self.SUPPORTED_DOCUMENT_TYPES)}'
+                }
+            
+            # Скачиваем файл
+            file = await context.bot.get_file(document.file_id)
+            
+            # Создаем временный файл
+            with tempfile.NamedTemporaryFile(suffix=file_extension, delete=False) as temp_file:
+                await file.download_to_drive(temp_file.name)
+                self.temp_files.append(temp_file.name)
+                
+                logger.info(f"Документ сохранен: {temp_file.name}")
+                
+                # TODO: Здесь можно добавить парсинг Excel/PDF файлов
+                # Пока возвращаем базовую информацию
+                return {
+                    'type': 'document',
+                    'file_path': temp_file.name,
+                    'file_name': document.file_name,
+                    'file_size': document.file_size,
+                    'mime_type': document.mime_type,
+                    'file_extension': file_extension,
+                    'caption': message.caption or '',
+                    'parsed_content': None  # Будет заполнено при добавлении парсера
+                }
+                
+        except Exception as e:
+            logger.error(f"Ошибка при обработке документа: {e}")
+            return None
+    
+    def cleanup_temp_files(self):
+        """Удаляет временные файлы"""
+        for temp_file in self.temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.unlink(temp_file)
+                    logger.info(f"Временный файл удален: {temp_file}")
+            except Exception as e:
+                logger.error(f"Ошибка при удалении временного файла {temp_file}: {e}")
+        
+        self.temp_files.clear()
+    
+    def __del__(self):
+        """Деструктор - очищает временные файлы"""
+        self.cleanup_temp_files()

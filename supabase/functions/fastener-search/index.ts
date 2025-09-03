@@ -95,7 +95,7 @@ interface RankingTokens {
   coatToks: string[];
 }
 
-// Функция для определения причины совпадения
+// Упрощенная функция для определения причины совпадения
 function getMatchReason(name: string, tokens: RankingTokens): string {
   const n = normalizeStr(name);
   
@@ -116,10 +116,6 @@ function getMatchReason(name: string, tokens: RankingTokens): string {
     return 'Совпадение размеров';
   }
   
-  if (tokens.coatToks.some(t => n.includes(normalizeStr(t)))) {
-    return 'Совпадение покрытия';
-  }
-  
   return 'Частичное совпадение по названию';
 }
 
@@ -135,18 +131,14 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     explanation: []
   };
   
-  console.log(`🔍 analyzeMatches: Анализируем "${name}"`);
-  console.log(`🔍 analyzeMatches: Нормализованное название: "${n}"`);
-  console.log(`🔍 analyzeMatches: Токены для поиска:`, tokens);
+  // Упрощенный анализ без избыточного логирования
   
   // Проверяем совпадение типа
   if (tokens.typeTok && n.includes(tokens.typeTok)) {
     analysis.type_match = true;
     analysis.matched_tokens.push(tokens.typeTok);
     analysis.explanation.push(`✅ Совпадение типа: "${tokens.typeTok}"`);
-    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение типа: "${tokens.typeTok}"`);
-  } else if (tokens.typeTok) {
-    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение типа: "${tokens.typeTok}"`);
+    // Совпадение типа найдено
   }
   
   // Проверяем совпадение стандарта
@@ -155,9 +147,7 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.standard_match = true;
     analysis.matched_tokens.push(...matchedStandards);
     analysis.explanation.push(`✅ Совпадение стандарта: "${matchedStandards.join(', ')}"`);
-    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение стандарта: "${matchedStandards.join(', ')}"`);
-  } else if (tokens.stdToks.length > 0) {
-    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение стандарта: "${tokens.stdToks.join(', ')}"`);
+    // Совпадение стандарта найдено
   }
   
   // Проверяем совпадение размеров
@@ -166,10 +156,7 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.size_match = true;
     analysis.matched_tokens.push(...matchedSizes);
     analysis.explanation.push(`✅ Совпадение размеров: "${matchedSizes.join(', ')}"`);
-    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение размеров: "${matchedSizes.join(', ')}"`);
-  } else if (tokens.mxlToks.length > 0) {
-    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение размеров: "${tokens.mxlToks.join(', ')}"`);
-    console.log(`🔍 analyzeMatches: Искали токены:`, tokens.mxlToks.map(t => normalizeStr(t)));
+    // Совпадение размеров найдено
   }
   
   // Проверяем совпадение покрытия
@@ -178,12 +165,9 @@ function analyzeMatches(name: string, tokens: RankingTokens): MatchAnalysis {
     analysis.coating_match = true;
     analysis.matched_tokens.push(...matchedCoatings);
     analysis.explanation.push(`✅ Совпадение покрытия: "${matchedCoatings.join(', ')}"`);
-    console.log(`🔍 analyzeMatches: ✅ Найдено совпадение покрытия: "${matchedCoatings.join(', ')}"`);
-  } else if (tokens.coatToks.length > 0) {
-    console.log(`🔍 analyzeMatches: ❌ Не найдено совпадение покрытия: "${tokens.coatToks.join(', ')}"`);
+    // Совпадение покрытия найдено
   }
   
-  console.log(`🔍 analyzeMatches: Итоговый анализ:`, analysis);
   return analysis;
 }
 
@@ -261,15 +245,7 @@ function calculateProbability(analysis: MatchAnalysis): ProbabilityData {
   
   explanation.push(`📈 Итоговая вероятность: ${probability}%`);
   
-  // Логирование для отладки
-  console.log("🔍 calculateProbability: Детали расчета:", {
-    totalScore,
-    probability,
-    type_match: analysis.type_match,
-    standard_match: analysis.standard_match,
-    size_match: analysis.size_match,
-    coating_match: analysis.coating_match
-  });
+  // Упрощенное логирование
   
   return {
     probability,

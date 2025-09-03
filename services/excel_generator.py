@@ -64,23 +64,24 @@ class ExcelGenerator:
     def _setup_headers(self):
         """Настраивает заголовки таблицы"""
         headers = [
-            "№",
-            "Позиция в заказе",
-            "Исходный запрос пользователя",
+            "№ п/п",
+            "№ позиции в запросе клиента",
+            "Запрос пользователя",
             "Поисковый запрос",
-            "Кол-во запрашиваемых деталей",
-            "Артикул (SKU)",
+            "Диаметр",
+            "Длина",
+            "Материал",
+            "Покрытие",
+            "Количество",
+            "Уверенность GPT",
+            "Найденный SKU",
             "Наименование в каталоге",
-            "Тип детали",
+            "Вероятность",
             "Размер упаковки",
             "Единица измерения",
-            "Релевантность",
-            "Вероятность (%)",
-            "Вопросы для уточнения",
-            "Статус валидации",
-            "Улучшенный поиск",
-            "Цикл улучшения",
-            "Нормализация ИИ"
+            "Стандарт",
+            "Класс прочности",
+            "Статус"
         ]
         
         for col, header in enumerate(headers, 1):
@@ -90,163 +91,90 @@ class ExcelGenerator:
             cell.alignment = Alignment(horizontal="center", vertical="center")
     
     def _fill_data(self, search_results: list):
-        """Заполняет таблицу данными"""
+        """Заполняет таблицу данными - ОБНОВЛЕНО для 18 колонок"""
         for row, item in enumerate(search_results, 2):
-            # Номер строки
+            # № п/п
             self.worksheet.cell(row=row, column=1, value=row - 1)
             
-            # Позиция в заказе
-            order_position = item.get('order_position', '')
+            # № позиции в запросе клиента
+            order_position = item.get('order_position', item.get('original_position', ''))
             self.worksheet.cell(row=row, column=2, value=order_position)
             
-            # Исходный запрос пользователя
-            original_query = item.get('full_query', item.get('search_query', ''))
-            self.worksheet.cell(row=row, column=3, value=original_query)
+            # Запрос пользователя (общий)
+            self.worksheet.cell(row=row, column=3, value=self.user_request)
             
-            # Поисковый запрос
+            # Поисковый запрос (для конкретной детали)
             search_query = item.get('search_query', '')
             self.worksheet.cell(row=row, column=4, value=search_query)
             
-            # Количество запрашиваемых деталей
-            requested_quantity = item.get('requested_quantity', 1)
-            self.worksheet.cell(row=row, column=5, value=requested_quantity)
+            # Диаметр
+            diameter = item.get('diameter', '')
+            self.worksheet.cell(row=row, column=5, value=diameter)
             
-            # Артикул (SKU)
+            # Длина
+            length = item.get('length', '')
+            self.worksheet.cell(row=row, column=6, value=length)
+            
+            # Материал
+            material = item.get('material', '')
+            self.worksheet.cell(row=row, column=7, value=material)
+            
+            # Покрытие (берем из user_intent или из названия)
+            coating = item.get('coating', '')
+            if not coating:
+                # Пытаемся извлечь из названия
+                name = item.get('name', '').lower()
+                if 'оцинкованный' in name:
+                    coating = 'оцинкованный'
+                elif 'латунный' in name:
+                    coating = 'латунный'
+                elif 'нержавеющий' in name:
+                    coating = 'нержавеющий'
+            self.worksheet.cell(row=row, column=8, value=coating)
+            
+            # Количество
+            requested_quantity = item.get('requested_quantity', item.get('quantity', 1))
+            self.worksheet.cell(row=row, column=9, value=requested_quantity)
+            
+            # Уверенность GPT (берем из user_intent)
+            confidence = item.get('confidence', 0)
+            if not confidence:
+                # Fallback на confidence_score из Supabase
+                confidence = item.get('confidence_score', 0)
+            confidence_cell = self.worksheet.cell(row=row, column=10, value=confidence)
+            confidence_cell.number_format = '0.00'
+            
+            # Найденный SKU
             sku = item.get('sku', '')
-            self.worksheet.cell(row=row, column=6, value=sku)
+            self.worksheet.cell(row=row, column=11, value=sku)
             
             # Наименование в каталоге
             name = item.get('name', '')
-            self.worksheet.cell(row=row, column=7, value=name)
+            self.worksheet.cell(row=row, column=12, value=name)
             
-            # Тип детали
-            item_type = item.get('type', '')
-            self.worksheet.cell(row=row, column=8, value=item_type)
+            # Вероятность (умная вероятность)
+            smart_probability = item.get('smart_probability', 0)
+            self.worksheet.cell(row=row, column=13, value=smart_probability)
             
             # Размер упаковки
             pack_size = item.get('pack_size', 0)
-            self.worksheet.cell(row=row, column=9, value=pack_size)
+            self.worksheet.cell(row=row, column=14, value=pack_size)
             
             # Единица измерения
             unit = item.get('unit', 'шт')
-            self.worksheet.cell(row=row, column=10, value=unit)
+            self.worksheet.cell(row=row, column=15, value=unit)
             
-            # Релевантность (число от 0 до 1)
-            relevance_score = item.get('relevance_score', 0)
-            relevance_cell = self.worksheet.cell(row=row, column=11, value=relevance_score / 100.0)
-            relevance_cell.number_format = '0.00'
+            # Стандарт
+            standard = self._extract_standard(name)
+            self.worksheet.cell(row=row, column=16, value=standard)
             
-            # Вероятность (%) - исправляем bug с процентами
-            probability_percent = item.get('probability_percent', 0)
-            probability_cell = self.worksheet.cell(row=row, column=12, value=probability_percent / 100.0)
-            probability_cell.number_format = '0.00%'  # Правильный формат для процентов
+            # Класс прочности
+            strength_class = self._extract_strength_class(name)
+            self.worksheet.cell(row=row, column=17, value=strength_class)
             
-            # Вопросы для уточнения
-            clarification_questions = self._generate_clarification_question(item, probability_percent)
-            self.worksheet.cell(row=row, column=13, value=clarification_questions)
-            
-            # Статус валидации
-            validation_status = item.get('validation_status', 'UNKNOWN')
-            self.worksheet.cell(row=row, column=14, value=validation_status)
-            
-            # Улучшенный поиск
-            improved_search = item.get('is_normalized', False)
-            self.worksheet.cell(row=row, column=15, value='Да' if improved_search else 'Нет')
-            
-            # Цикл улучшения
-            improvement_cycle = item.get('improvement_cycle', 0)
-            self.worksheet.cell(row=row, column=16, value=improvement_cycle)
-            
-            # Нормализация ИИ
-            ai_normalization = item.get('is_normalized', False)
-            self.worksheet.cell(row=row, column=17, value='Да' if ai_normalization else 'Нет')
-            
-            # Исходный запрос пользователя (полный запрос)
-            self.worksheet.cell(row=row, column=3, value=self.user_request)
-            
-            # Поисковый запрос (что искали для этой позиции)
-            search_query = item.get('full_query', item.get('search_query', ''))
-            if not search_query:
-                # Если нет search_query, используем user_intent для создания поискового запроса
-                user_intent = item.get('user_intent', {})
-                if user_intent:
-                    type_part = user_intent.get('type', '')
-                    diameter_part = user_intent.get('diameter', '')
-                    length_part = user_intent.get('length', '')
-                    coating_part = user_intent.get('coating', '')
-                    
-                    parts = []
-                    if type_part: parts.append(type_part)
-                    if diameter_part: parts.append(diameter_part)
-                    if length_part: parts.append(length_part)
-                    if coating_part: parts.append(coating_part)
-                    
-                    search_query = ' '.join(parts) if parts else 'Поиск по базе'
-                else:
-                    search_query = 'Поиск по базе'
-            
-            self.worksheet.cell(row=row, column=4, value=search_query)
-            
-            # Количество запрашиваемых деталей
-            requested_qty = item.get('requested_quantity', 1)
-            self.worksheet.cell(row=row, column=5, value=requested_qty)
-            
-            # Артикул
-            self.worksheet.cell(row=row, column=6, value=item.get('sku', ''))
-            
-            # Наименование
-            self.worksheet.cell(row=row, column=7, value=item.get('name', ''))
-            
-            # Тип детали
-            self.worksheet.cell(row=row, column=8, value=item.get('type', ''))
-            
-            # Размер упаковки
-            self.worksheet.cell(row=row, column=9, value=item.get('pack_size', ''))
-            
-            # Единица измерения
-            self.worksheet.cell(row=row, column=10, value=item.get('unit', ''))
-            
-            # Релевантность (вычисляем на основе позиции в результатах)
-            relevance = "Высокая" if row <= 3 else "Средняя" if row <= 8 else "Низкая"
-            self.worksheet.cell(row=row, column=11, value=relevance)
-            
-            # Вероятность (процент уверенности бота)
-            # Используем новое поле probability_percent, если оно есть
-            probability = item.get('probability_percent')
-            if probability is not None:
-                confidence = probability
-            else:
-                # Fallback на старый метод
-                confidence = item.get('confidence_score', self._calculate_confidence(item, row, len(search_results)))
-            self.worksheet.cell(row=row, column=12, value=f"{confidence}%")
-            
-            # Вопросы для уточнения (если уверенность < 90%)
-            clarification_question = ""
-            if confidence < 90:
-                clarification_question = item.get('clarification_question', self._generate_clarification_question(item, confidence))
-            self.worksheet.cell(row=row, column=13, value=clarification_question)
-            
-            # Статус валидации
-            validation_status = item.get('validation_status', '')
-            self.worksheet.cell(row=row, column=14, value=validation_status)
-            
-            # Информация об улучшенном поиске
-            if item.get('is_refined_search'):
-                improved_info = f"Улучшенный поиск: {item.get('improved_query', '')}"
-                self.worksheet.cell(row=row, column=15, value=improved_info)
-            else:
-                self.worksheet.cell(row=row, column=15, value="")
-            
-            # Цикл улучшения
-            cycle_number = item.get('cycle_number', '')
-            self.worksheet.cell(row=row, column=16, value=cycle_number)
-            
-            # Нормализация ИИ
-            if item.get('is_normalized'):
-                normalization_info = f"Исходный: {item.get('original_query', '')}\nНормализованный: {item.get('normalized_query', '')}"
-                self.worksheet.cell(row=row, column=17, value=normalization_info)
-            else:
-                self.worksheet.cell(row=row, column=17, value="")
+            # Статус
+            status = 'Найдено' if sku else 'Не найдено'
+            self.worksheet.cell(row=row, column=18, value=status)
     
     def _apply_styles(self):
         """Применяет стили к таблице"""
@@ -259,13 +187,13 @@ class ExcelGenerator:
         )
         
         # Применяем границы ко всем ячейкам с данными
-        for row in self.worksheet.iter_rows(min_row=1, max_row=self.worksheet.max_row, min_col=1, max_col=17):
+        for row in self.worksheet.iter_rows(min_row=1, max_row=self.worksheet.max_row, min_col=1, max_col=18):
             for cell in row:
                 cell.border = thin_border
                 cell.alignment = Alignment(horizontal="left", vertical="center")
         
         # Выравнивание заголовков по центру
-        for col in range(1, 18):
+        for col in range(1, 19):
             cell = self.worksheet.cell(row=1, column=col)
             cell.alignment = Alignment(horizontal="center", vertical="center")
     
@@ -349,4 +277,40 @@ class ExcelGenerator:
                 
         except Exception as e:
             return "Можете уточнить параметры?"
+
+    def _extract_standard(self, name: str) -> str:
+        """Извлекает стандарт из названия (DIN 933, DIN 603 и т.д.)"""
+        if not name:
+            return ""
+        
+        import re
+        # Ищем DIN стандарты
+        din_match = re.search(r'DIN\s*(\d+)', name, re.IGNORECASE)
+        if din_match:
+            return f"DIN {din_match.group(1)}"
+        
+        # Ищем другие стандарты
+        other_standards = re.findall(r'(ГОСТ|ISO|EN)\s*(\d+)', name, re.IGNORECASE)
+        if other_standards:
+            return f"{other_standards[0][0]} {other_standards[0][1]}"
+        
+        return ""
+
+    def _extract_strength_class(self, name: str) -> str:
+        """Извлекает класс прочности из названия (кл.пр.8.8, A2-70 и т.д.)"""
+        if not name:
+            return ""
+        
+        import re
+        # Ищем класс прочности (кл.пр.8.8, кл.пр.10.9)
+        strength_match = re.search(r'кл\.пр\.(\d+\.\d+)', name, re.IGNORECASE)
+        if strength_match:
+            return f"кл.пр.{strength_match.group(1)}"
+        
+        # Ищем другие обозначения прочности (A2-70, A4-80)
+        other_strength = re.search(r'([A-Z]\d+-\d+)', name)
+        if other_strength:
+            return other_strength.group(1)
+        
+        return ""
 

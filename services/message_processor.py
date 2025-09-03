@@ -45,59 +45,39 @@ class MessageProcessor:
         """Обрабатывает текстовое сообщение"""
         text = message.text.strip()
         
-        # Умный анализ намерения пользователя
+        # Умный анализ намерения пользователя (встроенный SmartParser)
         try:
-            from services.smart_parser import SmartParser
-            smart_parser = SmartParser()
-            
             # Определяем нужен ли GPT
-            parse_result = smart_parser.parse_query(text)
+            need_gpt, reason, basic_intent = self._analyze_query_complexity(text)
             
-            if parse_result['need_gpt']:
-                logger.info(f"🔍 SmartParser: ИИ ассистент необходим для: {parse_result['reason']}")
+            if need_gpt:
+                logger.info(f"🔍 Встроенный SmartParser: ИИ ассистент необходим для: {reason}")
                 # Используем ассистента с векторным хранилищем для сложных запросов
                 assistant_result = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Ассистент анализ успешен: {assistant_result}")
-                # Fallback на SmartParser, если ассистент вернул неизвестно или низкую уверенность
-                if not assistant_result or (isinstance(assistant_result, dict) and assistant_result.get('type') == 'неизвестно'):
-                    user_intent = parse_result.get('user_intent', {})
-                else:
-                    # Обрабатываем результат ассистента (может быть массив items или один объект)
-                    if isinstance(assistant_result, dict) and 'items' in assistant_result:
-                        # Если это массив items, обрабатываем как множественный заказ
-                        if assistant_result['items'] and len(assistant_result['items']) > 0:
-                            user_intent = {
-                                'is_multiple_order': True,
-                                'items': assistant_result['items']
-                            }
-                        else:
-                            user_intent = {}
+                
+                # Обрабатываем результат ассистента
+                if isinstance(assistant_result, dict) and 'items' in assistant_result:
+                    # Если это массив items, обрабатываем как множественный заказ
+                    if assistant_result['items'] and len(assistant_result['items']) > 0:
+                        user_intent = {
+                            'is_multiple_order': True,
+                            'items': assistant_result['items']
+                        }
                     else:
-                        # Если это один объект
-                        user_intent = assistant_result
+                        user_intent = {}
+                else:
+                    # Если это один объект
+                    user_intent = assistant_result
             else:
-                logger.info(f"🔍 SmartParser: GPT НЕ нужен: {parse_result['reason']}")
-                # Используем результат парсинга по правилам
-                user_intent = parse_result.get('user_intent', {})
+                logger.info(f"🔍 Встроенный SmartParser: GPT НЕ нужен: {reason}")
+                # Используем базовый user_intent
+                user_intent = basic_intent
             
-            # Если SmartParser не смог распознать, создаем базовый user_intent из текста
+            # Если не удалось распознать, создаем базовый user_intent
             if not user_intent or user_intent.get('type') == 'неизвестно':
-                logger.info("🔍 SmartParser не распознал, создаем базовый user_intent")
-                # Создаем базовый user_intent прямо здесь
-                import re
-                text_lower = text.lower()
-                
-                detected_type = 'саморез' if 'саморез' in text_lower else 'крепеж'
-                
-                # Ищем размеры 4,2x90
-                diameter = None
-                length = None
-                match = re.search(r'(\d+(?:,\d+)?)\s*[хx×]\s*(\d+)', text_lower)
-                if match:
-                    diameter = match.group(1).replace(',', '.')
-                    length = match.group(2)
-                
-                # Ищем количество
+                logger.info("🔍 Не удалось распознать, создаем базовый user_intent")
+                user_intent = self._create_basic_user_intent(text)
                 quantity = None
                 qty_match = re.search(r'(\d+)\s*шт', text_lower)
                 if qty_match:
@@ -253,12 +233,8 @@ class MessageProcessor:
             # Извлекаем текст из изображения
             text = await self.media_processor.image_to_text(photo_file.file_path)
             
-            # Умный анализ намерения
+            # Для фото всегда используем GPT (они сложные)
             try:
-                from services.smart_parser import SmartParser
-                smart_parser = SmartParser()
-                
-                # Для фото всегда используем GPT (они сложные)
                 user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Фото GPT анализ успешен: {user_intent}")
             except Exception as e:
@@ -302,12 +278,8 @@ class MessageProcessor:
                 # Для других типов файлов пока возвращаем заглушку
                 text = f"Файл: {document.file_name}"
             
-            # Умный анализ намерения
+            # Для документов всегда используем GPT (они сложные)
             try:
-                from services.smart_parser import SmartParser
-                smart_parser = SmartParser()
-                
-                # Для документов всегда используем GPT (они сложные)
                 user_intent = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Документ GPT анализ успешен: {user_intent}")
             except Exception as e:
@@ -328,4 +300,78 @@ class MessageProcessor:
         except Exception as e:
             logger.error(f"Ошибка при обработке документа: {e}")
             return None
+    
+    def _analyze_query_complexity(self, text: str) -> tuple[bool, str, dict]:
+        """Анализирует сложность запроса и определяет нужен ли GPT"""
+        text_lower = text.lower().strip()
+        
+        # Простые паттерны (НЕ нужен GPT)
+        simple_patterns = [
+            r'DIN\s+\d+\s+[M]\d+[x×]\d+',        # DIN 965 M6x20
+            r'[М]\d+\s+\d+\s*мм',                # M6 20 мм
+            r'винт\s+[М]\d+',                    # винт M6
+            r'гайка\s+[М]\d+',                   # гайка M6
+            r'болт\s+[М]\d+[x×]\d+',            # болт М6x40
+        ]
+        
+        # Проверяем простые паттерны
+        import re
+        for pattern in simple_patterns:
+            if re.search(pattern, text_lower):
+                basic_intent = self._create_basic_user_intent(text)
+                return False, "Простой формат", basic_intent
+        
+        # Индикаторы сложности (НУЖЕН GPT)
+        complex_indicators = [
+            'нужно', 'требуется', 'заказать', 'разных', 'несколько',
+            'что-то', 'подходящий', 'для крепления', 'мебельный',
+            'грибком', 'шестигранный', 'с фрезой'
+        ]
+        
+        for indicator in complex_indicators:
+            if indicator in text_lower:
+                return True, f"Сложный запрос: {indicator}", {}
+        
+        # По умолчанию используем GPT для неопределенных случаев
+        return True, "Неопределенный запрос", {}
+    
+    def _create_basic_user_intent(self, text: str) -> dict:
+        """Создает базовый user_intent из текста"""
+        import re
+        text_lower = text.lower()
+        
+        # Определяем тип
+        detected_type = 'саморез'
+        if 'болт' in text_lower:
+            detected_type = 'болт'
+        elif 'винт' in text_lower:
+            detected_type = 'винт'
+        elif 'гайка' in text_lower:
+            detected_type = 'гайка'
+        elif 'шайба' in text_lower:
+            detected_type = 'шайба'
+        elif 'анкер' in text_lower:
+            detected_type = 'анкер'
+        
+        # Ищем размеры M6x40
+        diameter = None
+        length = None
+        match = re.search(r'[МM](\d+)[x×х]\s*(\d+)', text_lower)
+        if match:
+            diameter = f"M{match.group(1)}"
+            length = f"{match.group(2)} мм"
+        
+        # Ищем количество
+        quantity = None
+        qty_match = re.search(r'(\d+)\s*шт', text_lower)
+        if qty_match:
+            quantity = int(qty_match.group(1))
+        
+        return {
+            'type': detected_type,
+            'diameter': diameter,
+            'length': length,
+            'quantity': quantity,
+            'confidence': 0.7
+        }
 
