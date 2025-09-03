@@ -1,8 +1,11 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "python311Packages.setuptools"]
+nixPkgs = ["python311", "python311Packages.pip", "python311Packages.setuptools", "deno"]
 
 [phases.install]
 cmds = ["pip install --break-system-packages -r requirements.txt"]
+
+[phases.build]
+cmds = ["deno cache supabase/functions/fastener-search/index.ts"]
 
 [start]
 cmd = "python bot.py"
