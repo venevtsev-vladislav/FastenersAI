@@ -2,8 +2,16 @@ FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
 
 WORKDIR /app/
 
-# Install Python and pip through Nix directly
-RUN nix-env -iA nixpkgs.python311 nixpkgs.python311Packages.pip nixpkgs.python311Packages.setuptools && nix-collect-garbage -d
+# Install Python 3.11 and basic tools
+RUN apt-get update && apt-get install -y python3.11 python3.11-venv python3.11-dev curl && rm -rf /var/lib/apt/lists/*
+
+# Create symlink for python3
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+# Install pip using get-pip.py
+RUN curl -sSfL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && \
+    python3 /tmp/get-pip.py && \
+    rm -f /tmp/get-pip.py
 
 # Verify Python and pip are working
 RUN python3 -V && python3 -m pip --version
