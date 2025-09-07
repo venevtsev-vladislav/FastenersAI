@@ -73,19 +73,25 @@ class FullMessageHandler:
             # Обрабатываем сообщение через MessageProcessor
             result = await self.message_processor.process_message(message)
             
+            logger.info(f"Результат обработки сообщения: {result}")
+            
             if not result or not result.get('user_intent'):
+                logger.warning("Не удалось получить user_intent из результата обработки")
                 await processing_msg.edit_text("❌ Не удалось обработать ваше сообщение. Попробуйте переформулировать запрос.")
                 return
             
             user_intent = result['user_intent']
+            logger.info(f"User intent: {user_intent}")
             
             # Обновляем статус
             await processing_msg.edit_text("🔍 Ищу детали в базе данных...")
             
             # Выполняем поиск в Supabase
             search_results = await self._search_in_database(user_intent)
+            logger.info(f"Результаты поиска: {len(search_results) if search_results else 0} позиций")
             
             if not search_results:
+                logger.warning(f"Поиск не дал результатов для user_intent: {user_intent}")
                 await processing_msg.edit_text("❌ Не найдено подходящих деталей. Попробуйте изменить параметры поиска.")
                 return
             
@@ -286,16 +292,25 @@ class FullMessageHandler:
     async def _search_in_database(self, user_intent: dict) -> list:
         """Выполняет поиск в базе данных Supabase"""
         try:
+            logger.info(f"Начинаем поиск в базе данных с user_intent: {user_intent}")
+            
             # Если это множественный заказ
             if user_intent.get('is_multiple_order') and user_intent.get('items'):
+                logger.info("Обрабатываем множественный заказ")
                 all_results = []
                 for item in user_intent['items']:
+                    logger.info(f"Поиск для позиции: {item}")
                     results = await self.supabase_client.search_parts(item)
+                    logger.info(f"Найдено {len(results)} результатов для позиции")
                     all_results.extend(results)
+                logger.info(f"Всего найдено {len(all_results)} результатов")
                 return all_results
             else:
                 # Одиночный поиск
-                return await self.supabase_client.search_parts(user_intent)
+                logger.info("Одиночный поиск")
+                results = await self.supabase_client.search_parts(user_intent)
+                logger.info(f"Найдено {len(results)} результатов")
+                return results
                 
         except Exception as e:
             logger.error(f"Ошибка при поиске в базе данных: {e}")

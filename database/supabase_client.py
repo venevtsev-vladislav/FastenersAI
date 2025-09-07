@@ -447,6 +447,8 @@ class SupabaseClient:
     async def search_parts(self, user_intent: dict) -> list:
         """Выполняет поиск деталей по user_intent"""
         try:
+            logger.info(f"SupabaseClient.search_parts вызван с user_intent: {user_intent}")
+            
             if not self.client:
                 logger.warning("Supabase клиент не инициализирован")
                 return []
@@ -456,28 +458,37 @@ class SupabaseClient:
             
             if user_intent.get('type'):
                 query_parts.append(user_intent['type'])
+                logger.info(f"Добавлен тип: {user_intent['type']}")
             
             if user_intent.get('diameter'):
                 query_parts.append(user_intent['diameter'])
+                logger.info(f"Добавлен диаметр: {user_intent['diameter']}")
             
             if user_intent.get('length'):
                 query_parts.append(user_intent['length'])
+                logger.info(f"Добавлена длина: {user_intent['length']}")
             
             if user_intent.get('material'):
                 query_parts.append(user_intent['material'])
+                logger.info(f"Добавлен материал: {user_intent['material']}")
             
             if user_intent.get('standard'):
                 query_parts.append(user_intent['standard'])
+                logger.info(f"Добавлен стандарт: {user_intent['standard']}")
             
             # Объединяем в поисковый запрос
             search_query = " ".join(query_parts)
+            logger.info(f"Сформирован поисковый запрос: '{search_query}'")
             
             if not search_query.strip():
                 logger.warning("Пустой поисковый запрос")
                 return []
             
             # Выполняем поиск
-            return await search_parts(search_query, user_intent)
+            logger.info("Вызываем функцию search_parts")
+            results = await search_parts(search_query, user_intent)
+            logger.info(f"Функция search_parts вернула {len(results)} результатов")
+            return results
             
         except Exception as e:
             logger.error(f"Ошибка при поиске деталей: {e}")
