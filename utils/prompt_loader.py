@@ -136,3 +136,4 @@ class PromptLoader:
         """Очищает кэш промптов"""
         self._cache.clear()
         logger.info("Кэш промптов очищен")
+

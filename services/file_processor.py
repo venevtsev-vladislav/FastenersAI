@@ -251,3 +251,4 @@ class FileProcessor:
         self.cleanup_temp_files()
         if hasattr(self, 'executor'):
             self.executor.shutdown(wait=False)
+

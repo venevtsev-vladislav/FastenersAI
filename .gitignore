@@ -139,7 +139,7 @@ debug_bot.log
 *.sqlite3
 
 # Config files with sensitive data
-config.py
+# config.py  # Убрано - нужен для Railway
 .env.local
 .env.production
 

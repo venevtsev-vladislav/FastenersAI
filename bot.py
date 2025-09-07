@@ -5,6 +5,19 @@ Telegram Bot для поиска крепежных деталей
 
 import logging
 import asyncio
+import os
+import sys
+
+# Добавляем текущую директорию в Python path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+# Убеждаемся, что мы не в директории numpy
+if 'numpy' in current_dir:
+    # Если мы в директории numpy, переходим в родительскую
+    current_dir = os.path.dirname(current_dir)
+    sys.path.insert(0, current_dir)
+
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from config import TELEGRAM_TOKEN
@@ -20,6 +33,10 @@ logger = logging.getLogger(__name__)
 def main():
     """Основная функция запуска бота"""
     try:
+        # Получаем порт для Railway (если не указан, используем 8000)
+        port = int(os.getenv('PORT', 8000))
+        logger.info(f"Запуск на порту: {port}")
+        
         # Создаем приложение
         application = Application.builder().token(TELEGRAM_TOKEN).build()
         
