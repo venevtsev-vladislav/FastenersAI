@@ -48,7 +48,7 @@ def main():
         logger.info(f"Запуск FastenersAI Bot (Lightweight версия v2.1)")
         logger.info(f"Порт: {PORT}")
         logger.info(f"Webhook URL: {WEBHOOK_URL}")
-        logger.info(f"Версия: 2025-09-07 13:10 - Исправления команды /start")
+        logger.info(f"Версия: 2025-09-07 13:15 - Проверка подключения Railway к Git")
         
         # Создание приложения
         global application
