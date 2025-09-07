@@ -15,6 +15,7 @@ from shared.errors import MessageProcessingError, handle_service_error
 from services.message_processor import MessageProcessor
 from services.excel_generator import ExcelGenerator
 # from database.supabase_client import save_user_request, search_parts  # Заменяем на Edge Function
+from config import MIN_PROBABILITY_THRESHOLD
 
 import os
 from dotenv import load_dotenv
@@ -451,22 +452,22 @@ class MessagePipeline:
             return 0
 
     def _filter_results_by_probability(self, search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Фильтрует результаты по вероятности (исключает менее 0.6)"""
+        """Фильтрует результаты по вероятности (исключает менее 0.3)"""
         if not search_results:
             return []
         
-        # Фильтруем результаты с вероятностью >= 0.6 (60%)
+        # Фильтруем результаты с вероятностью >= порога из конфигурации
         filtered_results = []
         for result in search_results:
             # Проверяем smart_probability (вероятность от поиска)
             smart_probability = result.get('smart_probability', 0)
-            if smart_probability >= 60:  # 60% = 0.6
+            if smart_probability >= MIN_PROBABILITY_THRESHOLD:
                 filtered_results.append(result)
                 logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {smart_probability}%")
             else:
-                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 60%")
+                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 30%")
         
-        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= 60%)")
+        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= {MIN_PROBABILITY_THRESHOLD}%)")
         return filtered_results
 
 async def search_parts_direct(query: str, user_intent: Dict[str, Any]) -> List[Dict[str, Any]]:

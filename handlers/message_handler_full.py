@@ -16,7 +16,7 @@ from services.openai_service import OpenAIService
 from services.media_processor import MediaProcessor
 from services.excel_generator import ExcelGenerator
 from database.supabase_client import SupabaseClient
-from config import MAX_FILE_SIZE
+from config import MAX_FILE_SIZE, MIN_PROBABILITY_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -464,22 +464,22 @@ class FullMessageHandler:
         return converted_results
     
     def _filter_results_by_probability(self, search_results: list) -> list:
-        """Фильтрует результаты по вероятности (исключает менее 0.6)"""
+        """Фильтрует результаты по вероятности (исключает менее 0.3)"""
         if not search_results:
             return []
         
-        # Фильтруем результаты с вероятностью >= 0.6 (60%)
+        # Фильтруем результаты с вероятностью >= порога из конфигурации
         filtered_results = []
         for result in search_results:
             # Проверяем smart_probability (вероятность от поиска)
             smart_probability = result.get('smart_probability', 0)
-            if smart_probability >= 60:  # 60% = 0.6
+            if smart_probability >= MIN_PROBABILITY_THRESHOLD:
                 filtered_results.append(result)
                 logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {smart_probability}%")
             else:
-                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 60%")
+                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 30%")
         
-        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= 60%)")
+        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= {MIN_PROBABILITY_THRESHOLD}%)")
         return filtered_results
 
     async def _send_rating_buttons(self, message, user_id: int):
