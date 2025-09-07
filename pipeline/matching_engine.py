@@ -89,23 +89,28 @@ class MatchingEngine:
         candidates = []
         
         # Create items lookup
-        items_lookup = {item['ku']: item for item in items}
+        items_lookup = {item['sku']: item for item in items}
         
         for alias in aliases:
             if (alias.get('alias', '') or '').lower() == parsed_line.normalized_text.lower():
-                item = items_lookup.get(alias['ku'])
-                if item:
-                    candidate = MatchCandidate(
-                        ku=item['ku'],
-                        name=item['name'],
-                        pack_qty=item.get('pack_qty'),
-                        price=item.get('price'),
-                        score=0.0,  # Will be calculated later
-                        explanation=f"Exact alias match: {alias['alias']}",
-                        source='rules'
-                    )
-                    candidates.append(candidate)
-                    logger.debug(f"Found alias match: {alias['alias']} -> {item['ku']}")
+                # Извлекаем тип из alias для поиска подходящих товаров
+                alias_type = alias.get('type', '')
+                if alias_type:
+                    # Ищем товары по типу
+                    for item in items:
+                        item_name = (item.get('name', '') or '').lower()
+                        if alias_type.lower() in item_name:
+                            candidate = MatchCandidate(
+                                ku=item['sku'],
+                                name=item['name'],
+                                pack_qty=item.get('pack_qty'),
+                                price=item.get('price'),
+                                score=0.6,  # Высокий балл за точное совпадение алиаса
+                                explanation=f"Exact alias match: {alias['alias']} -> {alias_type}",
+                                source='rules'
+                            )
+                            candidates.append(candidate)
+                            logger.debug(f"Found alias match: {alias['alias']} -> {alias_type} -> {item['sku']}")
         
         return candidates
     
@@ -122,9 +127,9 @@ class MatchingEngine:
             
             if similarity > 0.1:  # Minimum threshold
                 candidate = MatchCandidate(
-                    ku=item['ku'],
+                    ku=item['sku'],
                     name=item['name'],
-                    pack_qty=item.get('pack_qty'),
+                    pack_qty=item.get('pack_size'),
                     price=item.get('price'),
                     score=similarity,
                     explanation=f"Fuzzy match: {similarity:.2f} similarity",

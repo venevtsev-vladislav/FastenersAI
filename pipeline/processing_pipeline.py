@@ -216,7 +216,7 @@ class ProcessingPipeline:
                 items = []
                 for item in response.data:
                     items.append({
-                        'ku': item.get('sku', ''),
+                        'sku': item.get('sku', ''),
                         'name': item.get('name', '') or '',
                         'pack_qty': item.get('pack_size', 1),
                         'price': item.get('price', 0),
@@ -291,21 +291,27 @@ class ProcessingPipeline:
                     
                     # Handle different formats of maps_to
                     if isinstance(maps_to, dict):
-                        # Single mapping
-                        for alias_text, ku in maps_to.items():
+                        # Single mapping - extract type and subtype
+                        alias_type = maps_to.get('type', '')
+                        alias_subtype = maps_to.get('subtype', '')
+                        if alias_type:
                             aliases.append({
-                                'alias': alias_text,
-                                'ku': ku,
+                                'alias': alias.get('alias', ''),
+                                'type': alias_type,
+                                'subtype': alias_subtype,
                                 'weight': alias.get('confidence', 1.0)
                             })
                     elif isinstance(maps_to, list):
                         # Multiple mappings
                         for item in maps_to:
                             if isinstance(item, dict):
-                                for alias_text, ku in item.items():
+                                alias_type = item.get('type', '')
+                                alias_subtype = item.get('subtype', '')
+                                if alias_type:
                                     aliases.append({
-                                        'alias': alias_text,
-                                        'ku': ku,
+                                        'alias': alias.get('alias', ''),
+                                        'type': alias_type,
+                                        'subtype': alias_subtype,
                                         'weight': alias.get('confidence', 1.0)
                                     })
                     else:
