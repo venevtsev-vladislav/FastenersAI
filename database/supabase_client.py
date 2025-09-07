@@ -434,24 +434,28 @@ class SupabaseClient:
     def _init_client(self):
         """Инициализирует клиент Supabase"""
         try:
-            logger.info(f"Инициализация Supabase: URL={SUPABASE_URL[:20]}..., KEY={SUPABASE_KEY[:20]}...")
+            logger.info(f"Инициализация Supabase: URL={SUPABASE_URL[:20] if SUPABASE_URL else 'None'}..., KEY={SUPABASE_KEY[:20] if SUPABASE_KEY else 'None'}...")
             
             if not SUPABASE_URL or not SUPABASE_KEY:
-                logger.warning("Supabase credentials не настроены")
+                logger.warning(f"Supabase credentials не настроены: URL={bool(SUPABASE_URL)}, KEY={bool(SUPABASE_KEY)}")
                 return
             
+            logger.info("Создаем Supabase клиент...")
             self.client = create_client(SUPABASE_URL, SUPABASE_KEY)
-            logger.info("Supabase клиент инициализирован успешно")
+            logger.info("Supabase клиент создан успешно")
             
             # Тестируем подключение
             try:
+                logger.info("Тестируем подключение к Supabase...")
                 response = self.client.table('parts_catalog').select('count').limit(1).execute()
-                logger.info("Supabase подключение протестировано успешно")
+                logger.info(f"Supabase подключение протестировано успешно: {response}")
             except Exception as test_error:
                 logger.warning(f"Предупреждение при тестировании Supabase: {test_error}")
+                # Не сбрасываем клиент, если тест не прошёл
                 
         except Exception as e:
             logger.error(f"Ошибка при инициализации Supabase клиента: {e}")
+            logger.error(f"Тип ошибки: {type(e).__name__}")
             self.client = None
     
     async def search_parts(self, user_intent: dict) -> list:

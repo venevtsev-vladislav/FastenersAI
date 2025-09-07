@@ -330,7 +330,44 @@ class FullMessageHandler:
             # Создаем простые тестовые данные
             fallback_results = []
             
-            if user_intent.get('type') == 'саморез' and user_intent.get('diameter') == '4,2':
+            # Обрабатываем множественный заказ
+            if user_intent.get('is_multiple_order') and user_intent.get('items'):
+                logger.info("Fallback для множественного заказа")
+                for item in user_intent['items']:
+                    if item.get('type') == 'саморез' and item.get('diameter') == '4,2':
+                        fallback_results.extend([
+                            {
+                                'sku': 'TEST-001',
+                                'name': 'Саморез по металлу 4,2x25',
+                                'type': 'саморез',
+                                'diameter': '4,2',
+                                'length': '25',
+                                'material': 'сталь',
+                                'coating': 'цинк',
+                                'standard': 'DIN 7981',
+                                'strength_class': 'A2-70',
+                                'pack_quantity': '100',
+                                'price': '0.15',
+                                'notes': 'Тестовый результат'
+                            },
+                            {
+                                'sku': 'TEST-002', 
+                                'name': 'Саморез по дереву 4,2x25',
+                                'type': 'саморез',
+                                'diameter': '4,2',
+                                'length': '25',
+                                'material': 'сталь',
+                                'coating': 'фосфат',
+                                'standard': 'DIN 7982',
+                                'strength_class': 'A2-70',
+                                'pack_quantity': '100',
+                                'price': '0.12',
+                                'notes': 'Тестовый результат'
+                            }
+                        ])
+            # Обрабатываем одиночный поиск
+            elif user_intent.get('type') == 'саморез' and user_intent.get('diameter') == '4,2':
+                logger.info("Fallback для одиночного поиска")
                 fallback_results = [
                     {
                         'sku': 'TEST-001',
