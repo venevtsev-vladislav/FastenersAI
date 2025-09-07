@@ -8,9 +8,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram import Update
 from telegram.ext import ContextTypes
 
-# Import existing handlers
+# Import V2 handlers
 from handlers.command_handler import handle_start, handle_help
-from handlers.message_handler_full import handle_message, handle_rating_callback
+from handlers.message_handler_v2 import handle_message_v2 as handle_message
 
 # Configuration
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
@@ -34,9 +34,11 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✅ **Статус бота:**\n"
         "🟢 Онлайн и готов к работе\n"
-        "🌐 Режим: Webhook\n"
-        "🔧 Версия: Lightweight (без NumPy/Pandas)\n"
-        "📡 Платформа: Railway"
+        "🌐 Режим: Webhook V2\n"
+        "🔧 Версия: Enhanced Architecture\n"
+        "📡 Платформа: Railway\n"
+        "📊 Excel: 4 вкладки (Итог, Кандидаты, Вход, Ошибки)\n"
+        "🤖 AI: GPT валидация + продвинутая обработка"
     )
 
 async def initialize_bot():
@@ -54,7 +56,6 @@ async def initialize_bot():
         application.add_handler(MessageHandler(filters.PHOTO, handle_message))
         application.add_handler(MessageHandler(filters.VOICE, handle_message))
         application.add_handler(MessageHandler(filters.Document.ALL, handle_message))
-        application.add_handler(CallbackQueryHandler(handle_rating_callback))
         
         # Add logging handler
         async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -145,8 +146,19 @@ async def telegram_webhook_token(token: str, req: Request, x_telegram_bot_api_se
 async def root():
     """Root endpoint"""
     return {
-        'status': 'FastenersAI Bot is running! 🚀',
+        'status': 'FastenersAI Bot V2 is running! 🚀',
+        'version': '2.0.0',
+        'architecture': 'Enhanced',
         'webhook_url': f'/telegram/webhook',
         'health': '/health',
-        'version': '/version'
+        'version_endpoint': '/version',
+        'features': [
+            'Text input processing',
+            'Excel file processing', 
+            'Image OCR processing',
+            'Voice transcription',
+            'Multi-sheet Excel reports (4 tabs)',
+            'GPT validation for uncertain matches',
+            'Comprehensive matching engine'
+        ]
     }
