@@ -228,7 +228,40 @@ class ProcessingPipeline:
             # Query the items table
             response = self.supabase_client.client.table('items').select('*').eq('is_active', True).execute()
             
-            return response.data if response.data else []
+            if response.data:
+                logger.info(f"Loaded {len(response.data)} items from database")
+                return response.data
+            else:
+                logger.warning("No items found in database, using sample data")
+                # Fallback to sample data if database is empty
+                return [
+                    {
+                        'ku': 'BOLT-M10x30-8.8',
+                        'name': 'Болт DIN 933 кл.пр.8.8 М10х30, цинк',
+                        'pack_qty': 100,
+                        'price': 2.50,
+                        'is_active': True,
+                        'specs_json': {
+                            'diameter': 'M10',
+                            'length': '30',
+                            'strength_class': '8.8',
+                            'coating': 'цинк'
+                        }
+                    },
+                    {
+                        'ku': 'ANCHOR-M10x100',
+                        'name': 'Анкер клиновой оцинк. М10х100',
+                        'pack_qty': 25,
+                        'price': 15.80,
+                        'is_active': True,
+                        'specs_json': {
+                            'diameter': 'M10',
+                            'length': '100',
+                            'type': 'клиновой',
+                            'coating': 'оцинк'
+                        }
+                    }
+                ]
             
         except Exception as e:
             logger.error(f"Error loading items: {e}")
@@ -243,7 +276,18 @@ class ProcessingPipeline:
             # Query the sku_aliases table
             response = self.supabase_client.client.table('sku_aliases').select('*').execute()
             
-            return response.data if response.data else []
+            if response.data:
+                logger.info(f"Loaded {len(response.data)} aliases from database")
+                return response.data
+            else:
+                logger.warning("No aliases found in database, using sample data")
+                # Fallback to sample aliases
+                return [
+                    {'alias': 'болт м10х30', 'ku': 'BOLT-M10x30-8.8', 'weight': 1.0},
+                    {'alias': 'болт din 933 м10х30', 'ku': 'BOLT-M10x30-8.8', 'weight': 1.0},
+                    {'alias': 'анкер м10х100', 'ku': 'ANCHOR-M10x100', 'weight': 1.0},
+                    {'alias': 'анкер клиновой м10х100', 'ku': 'ANCHOR-M10x100', 'weight': 1.0}
+                ]
             
         except Exception as e:
             logger.error(f"Error loading aliases: {e}")
