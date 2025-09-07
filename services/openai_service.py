@@ -181,4 +181,23 @@ class OpenAIService:
         except Exception as e:
             logger.error(f"Ошибка при работе с ассистентом: {e}")
             return {'type': 'неизвестно', 'confidence': 0.1}
+    
+    async def call_gpt(self, prompt: str, model: str = "gpt-4o-mini", 
+                      temperature: float = 0.1, max_tokens: int = 500) -> str:
+        """Generic GPT call method for validation and other tasks"""
+        try:
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Error calling GPT: {e}")
+            return f"Error: {str(e)}"
 
