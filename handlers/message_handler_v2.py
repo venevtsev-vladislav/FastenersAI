@@ -293,16 +293,19 @@ class MessageHandlerV2:
     async def _perform_ocr(self, image_path: str) -> str:
         """Perform OCR on image (placeholder)"""
         # This would use actual OCR service like PaddleOCR or Tesseract
+        # For now, return sample text
         return "Анкер клиновой М10х100\nБолт DIN 933 М12х40"
     
     async def _perform_speech_to_text(self, voice_path: str) -> str:
         """Perform speech-to-text (placeholder)"""
         # This would use actual STT service like OpenAI Whisper
+        # For now, return sample text
         return "Анкер клиновой М10х100, болт DIN 933 М12х40"
     
     async def _parse_excel_file(self, excel_path: str) -> list:
         """Parse Excel file (placeholder)"""
-        # This would use actual Excel parser
+        # This would use actual Excel parser with openpyxl
+        # For now, return sample data
         return ["Анкер клиновой М10х100", "Болт DIN 933 М12х40"]
 
 # Global message handler instance

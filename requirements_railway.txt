@@ -1,22 +1,14 @@
-# Railway-совместимые зависимости
-# Порядок важен для избежания конфликтов numpy
-
-# Основные зависимости
-python-telegram-bot>=21.0
-python-dotenv>=1.0.0
-requests>=2.25.0
-aiohttp>=3.9.0
-httpx>=0.27.0
-gunicorn>=21.0.0
-
-# AI и API
-openai>=1.0.0
-supabase>=2.0.0
-
-# Обработка файлов (без numpy конфликтов)
-Pillow>=10.0.0
-openpyxl>=3.0.0
-
-# Data processing (в правильном порядке)
-numpy>=1.24.0
-pandas>=2.0.0
+# FastenersAI Bot V2 - Railway Minimal Requirements
+fastapi==0.104.1
+uvicorn==0.24.0
+python-telegram-bot==21.0
+supabase==2.0.0
+openai==1.3.0
+openpyxl==3.1.2
+aiohttp==3.9.0
+httpx==0.25.0
+python-dotenv==1.0.0
+Pillow==10.1.0
+python-multipart==0.0.6
+pydantic==2.5.0
+typing-extensions==4.8.0
