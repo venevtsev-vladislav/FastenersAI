@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Bot для поиска крепежных деталей
+Простая версия Telegram Bot для тестирования на Railway
 """
 
 import logging
@@ -12,23 +12,64 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-# Убеждаемся, что мы не в директории numpy
-if 'numpy' in current_dir:
-    # Если мы в директории numpy, переходим в родительскую
-    current_dir = os.path.dirname(current_dir)
-    sys.path.insert(0, current_dir)
-
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from config import TELEGRAM_TOKEN
-from handlers.message_handler import handle_message, handle_rating_callback
-from handlers.command_handler import handle_start, handle_help
-# from database.supabase_client import init_supabase  # Убрано - используем Edge Function
-from utils.logger import setup_logging
 
 # Настройка логирования
-setup_logging()
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /start"""
+    user = update.effective_user
+    await update.message.reply_html(
+        f"Привет, {user.mention_html()}!\n\n"
+        f"Я FastenersAI Bot - помощник для поиска крепежных деталей.\n"
+        f"Отправьте мне описание детали, и я найду подходящие варианты."
+    )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /help"""
+    help_text = """
+🤖 FastenersAI Bot - Помощник по поиску крепежных деталей
+
+📋 Доступные команды:
+/start - Начать работу с ботом
+/help - Показать это сообщение
+
+💡 Как использовать:
+Просто отправьте описание нужной детали, например:
+• "Болт М8х20"
+• "Гайка М6"
+• "Шайба пружинная"
+
+Бот найдет подходящие варианты в каталоге.
+    """
+    await update.message.reply_text(help_text)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик текстовых сообщений"""
+    user_message = update.message.text
+    user = update.effective_user
+    
+    logger.info(f"Получено сообщение от {user.username}: {user_message}")
+    
+    # Простой ответ для тестирования
+    response = f"""
+🔍 Поиск по запросу: "{user_message}"
+
+✅ Бот работает на Railway!
+📊 Статус: Активен
+🌐 Хостинг: Railway.app
+
+Это тестовая версия бота. Полная функциональность будет доступна после исправления проблем с зависимостями.
+    """
+    
+    await update.message.reply_text(response)
 
 def main():
     """Основная функция запуска бота"""
@@ -41,23 +82,13 @@ def main():
         application = Application.builder().token(TELEGRAM_TOKEN).build()
         
         # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", handle_start))
-        application.add_handler(CommandHandler("help", handle_help))
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
         
-        # Добавляем обработчик для callback кнопок (оценка работы бота)
-        application.add_handler(CallbackQueryHandler(handle_rating_callback, pattern="^rating_"))
-        
-        # Добавляем обработчики для разных типов сообщений
-        # Текстовые сообщения
+        # Добавляем обработчик для текстовых сообщений
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         
-        # Медиа файлы (фото, голос, документы)
-        application.add_handler(MessageHandler(filters.PHOTO | filters.VOICE | filters.Document.ALL, handle_message))
-        
         logger.info("Бот запущен успешно")
-        
-        # Инициализация Supabase убрана - используем Edge Function
-        logger.info("Supabase инициализация пропущена - используем Edge Function")
         
         # Запускаем бота
         application.run_polling(allowed_updates=Update.ALL_TYPES)
