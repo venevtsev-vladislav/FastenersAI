@@ -84,15 +84,31 @@ class ExcelGenerator:
             "Статус"
         ]
         
+        logger.info(f"Настраиваем заголовки: {len(headers)} колонок")
+        
         for col, header in enumerate(headers, 1):
             cell = self.worksheet.cell(row=1, column=col, value=header)
             cell.font = Font(bold=True)
             cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
             cell.alignment = Alignment(horizontal="center", vertical="center")
+            logger.debug(f"Заголовок {col}: {header}")
     
     def _fill_data(self, search_results: list):
         """Заполняет таблицу данными - ОБНОВЛЕНО для 18 колонок"""
+        logger.info(f"Заполняем данные: {len(search_results)} результатов")
+        
+        if not search_results:
+            logger.warning("Нет данных для заполнения Excel")
+            return
+            
         for row, item in enumerate(search_results, 2):
+            logger.debug(f"Заполняем строку {row} данными: {item}")
+            
+            # Проверяем, что item - это словарь
+            if not isinstance(item, dict):
+                logger.error(f"Элемент {row-1} не является словарем: {type(item)} - {item}")
+                continue
+                
             # № п/п
             self.worksheet.cell(row=row, column=1, value=row - 1)
             
