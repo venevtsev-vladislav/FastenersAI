@@ -310,11 +310,26 @@ class FullMessageHandler:
                 for item in user_intent['items']:
                     logger.info(f"Поиск для позиции: {item}")
                     
-                    # Формируем поисковый запрос
-                    search_query = f"{item.get('type', '')} {item.get('diameter', '')}x{item.get('length', '')}".strip()
+                    # Формируем поисковый запрос как в pipeline
+                    item_query = f"{item.get('type', '')} {item.get('diameter', '')} {item.get('length', '')}".strip()
+                    full_item_query = f"{item.get('type', '')} {item.get('diameter', '')} {item.get('length', '')} {item.get('material', '')} {item.get('coating', '')}".strip()
                     
-                    results = await search_parts_direct(search_query, item)
+                    results = await search_parts_direct(item_query, item)
                     logger.info(f"Найдено {len(results)} результатов для позиции")
+                    
+                    # Добавляем smart_probability как в pipeline
+                    for result in results:
+                        smart_probability = self._calculate_smart_probability(result, item)
+                        result['smart_probability'] = smart_probability
+                        result['requested_quantity'] = item.get('quantity', 1)
+                        result['search_query'] = item_query
+                        result['full_query'] = full_item_query
+                        result['diameter'] = item.get('diameter', '')
+                        result['length'] = item.get('length', '')
+                        result['material'] = item.get('material', '')
+                        result['coating'] = item.get('coating', '')
+                        result['confidence'] = item.get('confidence', 0)
+                    
                     all_results.extend(results)
                 logger.info(f"Всего найдено {len(all_results)} результатов")
                 return all_results
@@ -322,11 +337,26 @@ class FullMessageHandler:
                 # Одиночный поиск
                 logger.info("Одиночный поиск")
                 
-                # Формируем поисковый запрос
-                search_query = f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip()
+                # Формируем поисковый запрос как в pipeline
+                search_query = f"{user_intent.get('type', '')} {user_intent.get('diameter', '')} {user_intent.get('length', '')}".strip()
+                full_query = f"{user_intent.get('type', '')} {user_intent.get('diameter', '')} {user_intent.get('length', '')} {user_intent.get('material', '')} {user_intent.get('coating', '')}".strip()
                 
                 results = await search_parts_direct(search_query, user_intent)
                 logger.info(f"Найдено {len(results)} результатов")
+                
+                # Добавляем smart_probability как в pipeline
+                for result in results:
+                    smart_probability = self._calculate_smart_probability(result, user_intent)
+                    result['smart_probability'] = smart_probability
+                    result['requested_quantity'] = user_intent.get('quantity', 1)
+                    result['search_query'] = search_query
+                    result['full_query'] = full_query
+                    result['diameter'] = user_intent.get('diameter', '')
+                    result['length'] = user_intent.get('length', '')
+                    result['material'] = user_intent.get('material', '')
+                    result['coating'] = user_intent.get('coating', '')
+                    result['confidence'] = user_intent.get('confidence', 0)
+                
                 return results
                 
         except Exception as e:
@@ -455,7 +485,7 @@ class FullMessageHandler:
                 'confidence': gpt_item.get('confidence', 0),  # ← Берем confidence от GPT
                 'sku': result.get('sku', ''),
                 'name': result.get('name', ''),
-                'smart_probability': result.get('smart_probability', 0),
+                'smart_probability': result.get('probability_percent', 0),
                 'pack_size': result.get('pack_size', 0),
                 'unit': result.get('unit', 'шт')
             }
@@ -471,16 +501,59 @@ class FullMessageHandler:
         # Фильтруем результаты с вероятностью >= порога из конфигурации
         filtered_results = []
         for result in search_results:
-            # Проверяем smart_probability (вероятность от поиска)
-            smart_probability = result.get('smart_probability', 0)
-            if smart_probability >= MIN_PROBABILITY_THRESHOLD:
+            # Проверяем smart_probability (умная вероятность)
+            probability = result.get('smart_probability', 0)
+            if probability >= MIN_PROBABILITY_THRESHOLD:
                 filtered_results.append(result)
-                logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {smart_probability}%")
+                logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {probability}%")
             else:
-                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 30%")
+                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {probability}% < {MIN_PROBABILITY_THRESHOLD}%")
         
         logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= {MIN_PROBABILITY_THRESHOLD}%)")
         return filtered_results
+    
+    def _calculate_smart_probability(self, result: dict, user_intent: dict) -> int:
+        """Рассчитывает умную вероятность совпадения как в pipeline"""
+        try:
+            # Базовая вероятность от поиска
+            base_probability = result.get('probability_percent', 0)
+            
+            # Бонусы за совпадения
+            bonuses = 0
+            
+            # Проверяем совпадение диаметра (нормализуем кириллицу и латиницу)
+            result_diameter = str(result.get('diameter', '') or '').replace('М', 'M').replace('м', 'm')
+            user_diameter = str(user_intent.get('diameter', '') or '').replace('М', 'M').replace('м', 'm')
+            if result_diameter and user_diameter and result_diameter.lower() == user_diameter.lower():
+                bonuses += 20
+            
+            # Проверяем совпадение длины
+            result_length = str(result.get('length', '') or '')
+            user_length = str(user_intent.get('length', '') or '')
+            if result_length and user_length and result_length.lower() == user_length.lower():
+                bonuses += 15
+            
+            # Проверяем совпадение материала
+            result_material = str(result.get('material', '') or '')
+            user_material = str(user_intent.get('material', '') or '')
+            if result_material and user_material and user_material.lower() in result_material.lower():
+                bonuses += 10
+            
+            # Проверяем совпадение покрытия
+            result_coating = str(result.get('coating', '') or '')
+            user_coating = str(user_intent.get('coating', '') or '')
+            if result_coating and user_coating and user_coating.lower() in result_coating.lower():
+                bonuses += 10
+            
+            # Итоговая вероятность (не более 100%)
+            final_probability = min(base_probability + bonuses, 100)
+            
+            logger.debug(f"Расчет вероятности: базовая={base_probability}%, бонусы={bonuses}%, итого={final_probability}%")
+            return final_probability
+            
+        except Exception as e:
+            logger.error(f"Ошибка при расчете вероятности: {e}")
+            return 0
 
     async def _send_rating_buttons(self, message, user_id: int):
         """Отправляет кнопки для оценки работы бота"""
