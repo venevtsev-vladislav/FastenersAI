@@ -2,14 +2,8 @@ FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
 
 WORKDIR /app/
 
-# Copy nixpacks configuration
-COPY .nixpacks/nixpkgs-*.nix .nixpacks/nixpkgs.nix
-
-# Install Python and pip through Nix
-RUN nix-env -if .nixpacks/nixpkgs.nix && nix-collect-garbage -d
-
-# Install pip and setuptools for python311 from Nix
-RUN nix-env -iA nixpkgs.python311Packages.pip nixpkgs.python311Packages.setuptools
+# Install Python and pip through Nix directly
+RUN nix-env -iA nixpkgs.python311 nixpkgs.python311Packages.pip nixpkgs.python311Packages.setuptools && nix-collect-garbage -d
 
 # Verify Python and pip are working
 RUN python3 -V && python3 -m pip --version
