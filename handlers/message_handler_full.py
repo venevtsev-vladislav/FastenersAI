@@ -340,29 +340,27 @@ class FullMessageHandler:
                                 'sku': 'TEST-001',
                                 'name': 'Саморез по металлу 4,2x25',
                                 'type': 'саморез',
-                                'diameter': '4,2',
-                                'length': '25',
-                                'material': 'сталь',
-                                'coating': 'цинк',
-                                'standard': 'DIN 7981',
-                                'strength_class': 'A2-70',
-                                'pack_quantity': '100',
-                                'price': '0.15',
-                                'notes': 'Тестовый результат'
+                                'pack_size': 100,
+                                'unit': 'шт',
+                                'relevance_score': 0.95,
+                                'match_reason': 'Fallback поиск - тестовые данные',
+                                'packages_needed': 0,
+                                'total_quantity': 0,
+                                'excess_quantity': 0,
+                                'confidence_score': 95
                             },
                             {
                                 'sku': 'TEST-002', 
                                 'name': 'Саморез по дереву 4,2x25',
                                 'type': 'саморез',
-                                'diameter': '4,2',
-                                'length': '25',
-                                'material': 'сталь',
-                                'coating': 'фосфат',
-                                'standard': 'DIN 7982',
-                                'strength_class': 'A2-70',
-                                'pack_quantity': '100',
-                                'price': '0.12',
-                                'notes': 'Тестовый результат'
+                                'pack_size': 100,
+                                'unit': 'шт',
+                                'relevance_score': 0.90,
+                                'match_reason': 'Fallback поиск - тестовые данные',
+                                'packages_needed': 0,
+                                'total_quantity': 0,
+                                'excess_quantity': 0,
+                                'confidence_score': 90
                             }
                         ])
             # Обрабатываем одиночный поиск
@@ -373,29 +371,27 @@ class FullMessageHandler:
                         'sku': 'TEST-001',
                         'name': 'Саморез по металлу 4,2x25',
                         'type': 'саморез',
-                        'diameter': '4,2',
-                        'length': '25',
-                        'material': 'сталь',
-                        'coating': 'цинк',
-                        'standard': 'DIN 7981',
-                        'strength_class': 'A2-70',
-                        'pack_quantity': '100',
-                        'price': '0.15',
-                        'notes': 'Тестовый результат'
+                        'pack_size': 100,
+                        'unit': 'шт',
+                        'relevance_score': 0.95,
+                        'match_reason': 'Fallback поиск - тестовые данные',
+                        'packages_needed': 0,
+                        'total_quantity': 0,
+                        'excess_quantity': 0,
+                        'confidence_score': 95
                     },
                     {
                         'sku': 'TEST-002', 
                         'name': 'Саморез по дереву 4,2x25',
                         'type': 'саморез',
-                        'diameter': '4,2',
-                        'length': '25',
-                        'material': 'сталь',
-                        'coating': 'фосфат',
-                        'standard': 'DIN 7982',
-                        'strength_class': 'A2-70',
-                        'pack_quantity': '100',
-                        'price': '0.12',
-                        'notes': 'Тестовый результат'
+                        'pack_size': 100,
+                        'unit': 'шт',
+                        'relevance_score': 0.90,
+                        'match_reason': 'Fallback поиск - тестовые данные',
+                        'packages_needed': 0,
+                        'total_quantity': 0,
+                        'excess_quantity': 0,
+                        'confidence_score': 90
                     }
                 ]
             
