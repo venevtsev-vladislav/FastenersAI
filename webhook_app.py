@@ -58,7 +58,19 @@ async def initialize_bot():
         
         # Add logging handler
         async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            log.info(f"📨 Получено обновление: {update.update_id}, тип: {update.effective_message.content_type if update.effective_message else 'unknown'}")
+            message_type = 'unknown'
+            if update.effective_message:
+                if update.effective_message.text:
+                    message_type = 'text'
+                elif update.effective_message.photo:
+                    message_type = 'photo'
+                elif update.effective_message.voice:
+                    message_type = 'voice'
+                elif update.effective_message.document:
+                    message_type = 'document'
+                else:
+                    message_type = 'other'
+            log.info(f"📨 Получено обновление: {update.update_id}, тип: {message_type}")
         
         application.add_handler(MessageHandler(filters.ALL, log_update), group=1)
         

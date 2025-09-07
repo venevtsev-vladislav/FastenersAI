@@ -434,12 +434,22 @@ class SupabaseClient:
     def _init_client(self):
         """Инициализирует клиент Supabase"""
         try:
+            logger.info(f"Инициализация Supabase: URL={SUPABASE_URL[:20]}..., KEY={SUPABASE_KEY[:20]}...")
+            
             if not SUPABASE_URL or not SUPABASE_KEY:
                 logger.warning("Supabase credentials не настроены")
                 return
             
             self.client = create_client(SUPABASE_URL, SUPABASE_KEY)
-            logger.info("Supabase клиент инициализирован")
+            logger.info("Supabase клиент инициализирован успешно")
+            
+            # Тестируем подключение
+            try:
+                response = self.client.table('parts_catalog').select('count').limit(1).execute()
+                logger.info("Supabase подключение протестировано успешно")
+            except Exception as test_error:
+                logger.warning(f"Предупреждение при тестировании Supabase: {test_error}")
+                
         except Exception as e:
             logger.error(f"Ошибка при инициализации Supabase клиента: {e}")
             self.client = None
