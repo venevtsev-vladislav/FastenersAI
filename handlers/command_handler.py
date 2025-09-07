@@ -12,7 +12,7 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
     try:
         user = update.effective_user
-        logger.info(f"🚀 Получена команда /start от пользователя {user.id} ({user.first_name})")
+        logger.info(f"🚀 Получена команда /start от пользователя {user.id} ({user.first_name}) - v2.1")
         
         welcome_message = f"""
 Привет, {user.first_name}! 👋

@@ -45,9 +45,10 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Основная функция запуска бота"""
     try:
-        logger.info(f"Запуск FastenersAI Bot (Lightweight версия)")
+        logger.info(f"Запуск FastenersAI Bot (Lightweight версия v2.1)")
         logger.info(f"Порт: {PORT}")
         logger.info(f"Webhook URL: {WEBHOOK_URL}")
+        logger.info(f"Версия: 2025-09-07 13:10 - Исправления команды /start")
         
         # Создание приложения
         global application
