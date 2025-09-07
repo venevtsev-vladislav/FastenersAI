@@ -405,14 +405,42 @@ class FullMessageHandler:
     async def _generate_excel_file(self, search_results: list, user_intent: dict, original_query: str) -> str:
         """Генерирует Excel файл с результатами поиска"""
         try:
-            return await self.excel_generator.generate_search_results_excel(
-                search_results=search_results,
-                user_intent=user_intent,
-                original_query=original_query
+            # Преобразуем данные из старого формата в новый формат для generate_excel
+            converted_results = self._convert_search_results_to_new_format(search_results, user_intent)
+            
+            # Используем основной метод с 18 колонками вместо старого с 13
+            return await self.excel_generator.generate_excel(
+                search_results=converted_results,
+                user_request=original_query
             )
         except Exception as e:
             logger.error(f"Ошибка при генерации Excel файла: {e}")
             raise
+    
+    def _convert_search_results_to_new_format(self, search_results: list, user_intent: dict) -> list:
+        """Преобразует данные из старого формата в новый формат для generate_excel"""
+        converted_results = []
+        
+        for i, result in enumerate(search_results, 1):
+            # Преобразуем данные в новый формат
+            converted_result = {
+                'order_position': i,
+                'search_query': f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip(),
+                'diameter': result.get('diameter', ''),
+                'length': result.get('length', ''),
+                'material': result.get('material', ''),
+                'coating': result.get('coating', ''),
+                'requested_quantity': user_intent.get('quantity', 1),
+                'confidence': result.get('confidence_score', 0) / 100 if result.get('confidence_score') else 0,
+                'sku': result.get('sku', ''),
+                'name': result.get('name', ''),
+                'smart_probability': result.get('probability_percent', 0),
+                'pack_size': result.get('pack_size', 0),
+                'unit': result.get('unit', 'шт')
+            }
+            converted_results.append(converted_result)
+        
+        return converted_results
 
     async def _send_rating_buttons(self, message, user_id: int):
         """Отправляет кнопки для оценки работы бота"""
