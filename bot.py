@@ -54,14 +54,23 @@ def main():
         application = Application.builder().token(TOKEN).build()
         
         # Добавление обработчиков
+        logger.info("Регистрация обработчиков команд...")
         application.add_handler(CommandHandler("start", handle_start))
         application.add_handler(CommandHandler("help", handle_help))
         application.add_handler(CommandHandler("status", status))
+        logger.info("Регистрация обработчиков сообщений...")
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         application.add_handler(MessageHandler(filters.PHOTO, handle_message))
         application.add_handler(MessageHandler(filters.VOICE, handle_message))
         application.add_handler(MessageHandler(filters.Document.ALL, handle_message))
         application.add_handler(CallbackQueryHandler(handle_rating_callback))
+        logger.info("Все обработчики зарегистрированы успешно")
+        
+        # Добавляем общий обработчик для логирования всех обновлений
+        async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            logger.info(f"📨 Получено обновление: {update.update_id}, тип: {update.effective_message.content_type if update.effective_message else 'unknown'}")
+        
+        application.add_handler(MessageHandler(filters.ALL, log_update), group=1)
         
         # Запуск webhook
         logger.info("Запуск webhook...")

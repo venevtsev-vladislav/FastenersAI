@@ -10,8 +10,11 @@ logger = logging.getLogger(__name__)
 
 async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /start"""
-    user = update.effective_user
-    welcome_message = f"""
+    try:
+        user = update.effective_user
+        logger.info(f"🚀 Получена команда /start от пользователя {user.id} ({user.first_name})")
+        
+        welcome_message = f"""
 Привет, {user.first_name}! 👋
 
 Я бот для поиска крепежных деталей. Отправьте мне:
@@ -25,10 +28,17 @@ async def handle_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Команды:
 /help - показать справку
 /start - начать заново
-    """
-    
-    await update.message.reply_text(welcome_message.strip())
-    logger.info(f"Пользователь {user.id} запустил бота")
+        """
+        
+        await update.message.reply_text(welcome_message.strip())
+        logger.info(f"✅ Ответ на /start отправлен пользователю {user.id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в handle_start: {e}")
+        try:
+            await update.message.reply_text("❌ Произошла ошибка при обработке команды /start")
+        except:
+            pass
 
 async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /help"""
