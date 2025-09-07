@@ -270,8 +270,12 @@ class MessagePipeline:
             # Ранжирование происходит в Edge Function, возвращаем как есть
             ranked_results = search_results
             
+            # Фильтруем результаты по вероятности (исключаем менее 0.6)
+            filtered_results = self._filter_results_by_probability(ranked_results)
+            
             logger.info(f"Результаты ранжированы: {len(ranked_results)} позиций")
-            return ranked_results
+            logger.info(f"Фильтрация по вероятности: {len(ranked_results)} -> {len(filtered_results)} результатов")
+            return filtered_results
             
         except Exception as e:
             logger.error(f"Ошибка при ранжировании: {e}")
@@ -445,6 +449,25 @@ class MessagePipeline:
         except Exception as e:
             logger.error(f"Ошибка при расчете вероятности: {e}")
             return 0
+
+    def _filter_results_by_probability(self, search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Фильтрует результаты по вероятности (исключает менее 0.6)"""
+        if not search_results:
+            return []
+        
+        # Фильтруем результаты с вероятностью >= 0.6 (60%)
+        filtered_results = []
+        for result in search_results:
+            # Проверяем smart_probability (вероятность от поиска)
+            smart_probability = result.get('smart_probability', 0)
+            if smart_probability >= 60:  # 60% = 0.6
+                filtered_results.append(result)
+                logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {smart_probability}%")
+            else:
+                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 60%")
+        
+        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= 60%)")
+        return filtered_results
 
 async def search_parts_direct(query: str, user_intent: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Прямой вызов Edge Function для поиска деталей"""

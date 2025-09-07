@@ -416,8 +416,12 @@ class FullMessageHandler:
     async def _generate_excel_file(self, search_results: list, user_intent: dict, original_query: str) -> str:
         """Генерирует Excel файл с результатами поиска"""
         try:
+            # Фильтруем результаты по вероятности (исключаем менее 0.6)
+            filtered_results = self._filter_results_by_probability(search_results)
+            logger.info(f"Фильтрация по вероятности: {len(search_results)} -> {len(filtered_results)} результатов")
+            
             # Преобразуем данные из старого формата в новый формат для generate_excel
-            converted_results = self._convert_search_results_to_new_format(search_results, user_intent)
+            converted_results = self._convert_search_results_to_new_format(filtered_results, user_intent)
             
             # Используем основной метод с 18 колонками вместо старого с 13
             return await self.excel_generator.generate_excel(
@@ -458,6 +462,25 @@ class FullMessageHandler:
             converted_results.append(converted_result)
         
         return converted_results
+    
+    def _filter_results_by_probability(self, search_results: list) -> list:
+        """Фильтрует результаты по вероятности (исключает менее 0.6)"""
+        if not search_results:
+            return []
+        
+        # Фильтруем результаты с вероятностью >= 0.6 (60%)
+        filtered_results = []
+        for result in search_results:
+            # Проверяем smart_probability (вероятность от поиска)
+            smart_probability = result.get('smart_probability', 0)
+            if smart_probability >= 60:  # 60% = 0.6
+                filtered_results.append(result)
+                logger.debug(f"Результат включен: {result.get('sku', 'N/A')} - вероятность {smart_probability}%")
+            else:
+                logger.debug(f"Результат исключен: {result.get('sku', 'N/A')} - вероятность {smart_probability}% < 60%")
+        
+        logger.info(f"Фильтрация завершена: {len(search_results)} -> {len(filtered_results)} результатов (вероятность >= 60%)")
+        return filtered_results
 
     async def _send_rating_buttons(self, message, user_id: int):
         """Отправляет кнопки для оценки работы бота"""
