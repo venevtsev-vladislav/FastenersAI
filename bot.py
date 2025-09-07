@@ -1,106 +1,80 @@
 #!/usr/bin/env python3
 """
-Telegram Bot для поиска крепежных деталей
+FastenersAI Bot - Простая версия с webhook для Railway
 """
 
-import logging
-import asyncio
 import os
-import sys
-
-# Добавляем текущую директорию в Python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-
-# Убеждаемся, что мы не в директории numpy
-if 'numpy' in current_dir:
-    # Если мы в директории numpy, переходим в родительскую
-    current_dir = os.path.dirname(current_dir)
-    sys.path.insert(0, current_dir)
-
+import logging
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from config import TELEGRAM_TOKEN
-# from database.supabase_client import init_supabase  # Убрано - используем Edge Function
-from utils.logger import setup_logging
+from telegram.ext import ContextTypes
+
+# Импорт обработчиков
+from handlers.command_handler import handle_start, handle_help
+from handlers.message_handler_lightweight import handle_message, handle_rating_callback
 
 # Настройка логирования
-setup_logging()
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Условный импорт для Railway
-try:
-    from handlers.message_handler import handle_message, handle_rating_callback
-    from handlers.command_handler import handle_start, handle_help
-    FULL_FUNCTIONALITY = True
-    logger.info("Полная функциональность загружена")
-except ImportError as e:
-    logger.warning(f"Не удалось импортировать полную функциональность: {e}")
-    # Создаем заглушки для основных функций
-    async def handle_message(update, context):
-        await update.message.reply_text("🤖 Бот работает в ограниченном режиме на Railway")
-    
-    async def handle_rating_callback(update, context):
-        await update.callback_query.answer("Функция недоступна в ограниченном режиме")
-    
-    async def handle_start(update, context):
-        await update.message.reply_text("Привет! Я FastenersAI Bot (Railway версия)")
-    
-    async def handle_help(update, context):
-        await update.message.reply_text("Помощь: бот работает в ограниченном режиме")
-    
-    FULL_FUNCTIONALITY = False
-    logger.info("Загружена ограниченная версия для Railway")
+# Получение токена
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+if not TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
+
+# Получение порта и webhook URL
+PORT = int(os.getenv('PORT', 8000))
+WEBHOOK_BASE = os.getenv('WEBHOOK_BASE', 'https://fastenersai-production.up.railway.app')
+WEBHOOK_PATH = f"/webhook/{TOKEN}"
+WEBHOOK_URL = f"{WEBHOOK_BASE}{WEBHOOK_PATH}"
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /status"""
+    await update.message.reply_text(
+        "✅ **Статус бота:**\n"
+        "🟢 Онлайн и готов к работе\n"
+        "🌐 Режим: Webhook\n"
+        "🔧 Версия: Lightweight (без NumPy/Pandas)\n"
+        "📡 Платформа: Railway"
+    )
+
 
 def main():
     """Основная функция запуска бота"""
     try:
-        # Получаем порт для Railway (если не указан, используем 8000)
-        port = int(os.getenv('PORT', 8000))
-        logger.info(f"Запуск на порту: {port}")
+        logger.info(f"Запуск FastenersAI Bot (Lightweight версия)")
+        logger.info(f"Порт: {PORT}")
+        logger.info(f"Webhook URL: {WEBHOOK_URL}")
         
-        # Логируем режим работы
-        if FULL_FUNCTIONALITY:
-            logger.info("🚀 Полная функциональность активна")
-        else:
-            logger.warning("⚠️ Ограниченный режим - некоторые функции недоступны")
+        # Создание приложения
+        global application
+        application = Application.builder().token(TOKEN).build()
         
-        # Создаем приложение
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
-        
-        # Добавляем обработчики команд
+        # Добавление обработчиков
         application.add_handler(CommandHandler("start", handle_start))
         application.add_handler(CommandHandler("help", handle_help))
-        
-        # Добавляем обработчик для callback кнопок (оценка работы бота)
-        application.add_handler(CallbackQueryHandler(handle_rating_callback, pattern="^rating_"))
-        
-        # Добавляем обработчики для разных типов сообщений
-        # Текстовые сообщения
+        application.add_handler(CommandHandler("status", status))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_message))
+        application.add_handler(MessageHandler(filters.VOICE, handle_message))
+        application.add_handler(MessageHandler(filters.Document.ALL, handle_message))
+        application.add_handler(CallbackQueryHandler(handle_rating_callback))
         
-        # Медиа файлы (фото, голос, документы)
-        application.add_handler(MessageHandler(filters.PHOTO | filters.VOICE | filters.Document.ALL, handle_message))
+        # Запуск webhook
+        logger.info("Запуск webhook...")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=WEBHOOK_PATH,
+            webhook_url=WEBHOOK_URL
+        )
         
-        logger.info("Бот запущен успешно")
-        
-        # Инициализация Supabase убрана - используем Edge Function
-        logger.info("Supabase инициализация пропущена - используем Edge Function")
-        
-        # Запускаем бота
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
-        
-    except Exception as e:
-        logger.error(f"Ошибка при запуске бота: {e}")
-        raise
-
-if __name__ == "__main__":
-    try:
-        # Запускаем бота
-        main()
-    except KeyboardInterrupt:
-        logger.info("Бот остановлен пользователем")
     except Exception as e:
         logger.error(f"Критическая ошибка: {e}")
-        import traceback
-        traceback.print_exc()
+        raise
+
+if __name__ == '__main__':
+    main()
