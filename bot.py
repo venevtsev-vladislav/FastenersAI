@@ -21,8 +21,28 @@ if 'numpy' in current_dir:
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from config import TELEGRAM_TOKEN
-from handlers.message_handler import handle_message, handle_rating_callback
-from handlers.command_handler import handle_start, handle_help
+# Условный импорт для Railway
+try:
+    from handlers.message_handler import handle_message, handle_rating_callback
+    from handlers.command_handler import handle_start, handle_help
+    FULL_FUNCTIONALITY = True
+except ImportError as e:
+    logger.warning(f"Не удалось импортировать полную функциональность: {e}")
+    # Создаем заглушки для основных функций
+    async def handle_message(update, context):
+        await update.message.reply_text("🤖 Бот работает в ограниченном режиме на Railway")
+    
+    async def handle_rating_callback(update, context):
+        await update.callback_query.answer("Функция недоступна в ограниченном режиме")
+    
+    async def handle_start(update, context):
+        await update.message.reply_text("Привет! Я FastenersAI Bot (Railway версия)")
+    
+    async def handle_help(update, context):
+        await update.message.reply_text("Помощь: бот работает в ограниченном режиме")
+    
+    FULL_FUNCTIONALITY = False
+
 # from database.supabase_client import init_supabase  # Убрано - используем Edge Function
 from utils.logger import setup_logging
 
