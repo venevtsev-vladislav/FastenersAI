@@ -92,7 +92,7 @@ class MatchingEngine:
         items_lookup = {item['ku']: item for item in items}
         
         for alias in aliases:
-            if alias['alias'].lower() == parsed_line.normalized_text.lower():
+            if (alias.get('alias', '') or '').lower() == parsed_line.normalized_text.lower():
                 item = items_lookup.get(alias['ku'])
                 if item:
                     candidate = MatchCandidate(
@@ -137,7 +137,7 @@ class MatchingEngine:
     def _calculate_similarity(self, parsed_line: ParsedLine, item: Dict) -> float:
         """Calculate similarity between parsed line and item"""
         score = 0.0
-        name = item.get('name', '').lower()
+        name = (item.get('name', '') or '').lower()
         specs = item.get('specs_json', {})
         
         # Name similarity
@@ -174,7 +174,7 @@ class MatchingEngine:
         
         # Diameter match
         if 'diameter' in params and 'diameter' in specs:
-            if params['diameter'].lower() == specs['diameter'].lower():
+            if (params.get('diameter', '') or '').lower() == (specs.get('diameter', '') or '').lower():
                 score += self.weights['diameter_match']
         
         # Length match
@@ -184,17 +184,17 @@ class MatchingEngine:
         
         # Material match
         if 'material' in params and 'material' in specs:
-            if params['material'].lower() in specs['material'].lower():
+            if (params.get('material', '') or '').lower() in (specs.get('material', '') or '').lower():
                 score += self.weights['material_match']
         
         # Coating match
         if 'coating' in params and 'coating' in specs:
-            if params['coating'].lower() in specs['coating'].lower():
+            if (params.get('coating', '') or '').lower() in (specs.get('coating', '') or '').lower():
                 score += self.weights['coating_match']
         
         # Standard match
         if 'standard' in params and 'standard' in specs:
-            if params['standard'].lower() in specs['standard'].lower():
+            if (params.get('standard', '') or '').lower() in (specs.get('standard', '') or '').lower():
                 score += self.weights['standard_match']
         
         return score
@@ -204,7 +204,7 @@ class MatchingEngine:
         if not parsed_line.extracted_params or 'type' not in parsed_line.extracted_params:
             return candidates
         
-        required_type = parsed_line.extracted_params['type'].lower()
+        required_type = (parsed_line.extracted_params.get('type', '') or '').lower()
         filtered_candidates = []
         
         for candidate in candidates:
@@ -217,7 +217,7 @@ class MatchingEngine:
     
     def _matches_type(self, item_name: str, required_type: str) -> bool:
         """Check if item name matches required type"""
-        name_lower = item_name.lower()
+        name_lower = (item_name or '').lower()
         
         for type_name, patterns in self.type_patterns.items():
             if any(pattern in required_type for pattern in patterns):
@@ -233,7 +233,7 @@ class MatchingEngine:
         score += candidate.score * 0.7
         
         # Bonus for exact KU match
-        if parsed_line.normalized_text.lower() == candidate.ku.lower():
+        if parsed_line.normalized_text.lower() == (candidate.ku or '').lower():
             score += self.weights['ku_match']
         
         # Bonus for exact alias match

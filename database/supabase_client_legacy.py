@@ -27,6 +27,9 @@ class SupabaseClientLegacy:
                 return
             
             self.client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            
+            # Test connection
+            response = self.client.table('user_requests').select('count').limit(1).execute()
             logger.info("Supabase client initialized successfully")
             
         except Exception as e:
