@@ -13,11 +13,11 @@ from handlers.command_handler import handle_start, handle_help
 from handlers.message_handler_lightweight import handle_message, handle_rating_callback
 
 # Configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN', os.getenv('TELEGRAM_BOT_TOKEN', ''))
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 SECRET = os.getenv('TG_WEBHOOK_SECRET', '')
 
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN or TELEGRAM_BOT_TOKEN must be set")
+    raise ValueError("TELEGRAM_BOT_TOKEN must be set")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
