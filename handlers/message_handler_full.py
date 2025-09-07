@@ -432,17 +432,23 @@ class FullMessageHandler:
         """Преобразует данные из формата search_parts_direct в новый формат для generate_excel"""
         converted_results = []
         
+        # Получаем items из user_intent для извлечения confidence от GPT
+        items = user_intent.get('items', []) if user_intent.get('is_multiple_order') else [user_intent]
+        
         for i, result in enumerate(search_results, 1):
+            # Находим соответствующий item из GPT для извлечения confidence
+            gpt_item = items[i-1] if i-1 < len(items) else {}
+            
             # Преобразуем данные в новый формат
             converted_result = {
                 'order_position': i,
-                'search_query': result.get('search_query', f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip()),
+                'search_query': result.get('search_query', f"{gpt_item.get('type', '')} {gpt_item.get('diameter', '')}x{gpt_item.get('length', '')}".strip()),
                 'diameter': result.get('diameter', ''),
                 'length': result.get('length', ''),
                 'material': result.get('material', ''),
                 'coating': result.get('coating', ''),
-                'requested_quantity': user_intent.get('quantity', 1),
-                'confidence': result.get('confidence', 0),
+                'requested_quantity': gpt_item.get('quantity', 1),
+                'confidence': gpt_item.get('confidence', 0),  # ← Берем confidence от GPT
                 'sku': result.get('sku', ''),
                 'name': result.get('name', ''),
                 'smart_probability': result.get('smart_probability', 0),
