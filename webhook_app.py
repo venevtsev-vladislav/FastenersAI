@@ -79,11 +79,8 @@ async def health():
 @app.get('/version')
 async def version():
     """Version endpoint"""
-    sha = os.getenv('APP_VERSION', '')
-    if not sha:
-        p = pathlib.Path('BUILD_SHA')
-        sha = p.read_text().strip() if p.exists() else 'unknown'
-    return {'version': sha}
+    sha = os.getenv('APP_VERSION', os.getenv('RAILWAY_GIT_COMMIT_SHA', 'unknown'))
+    return {'version': sha[:7] if sha != 'unknown' else 'dev'}
 
 async def handle_update(payload: dict):
     """Process Telegram update"""
