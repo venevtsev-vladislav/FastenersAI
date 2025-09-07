@@ -12,13 +12,23 @@ load_dotenv()
 # Telegram Bot конфигурация
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
+# Проверяем наличие обязательных переменных
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения")
+
 # OpenAI конфигурация
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_MODEL = "gpt-4"
 
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY не установлен в переменных окружения")
+
 # Supabase конфигурация
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("SUPABASE_URL и SUPABASE_KEY должны быть установлены в переменных окружения")
 
 # Конфигурация базы данных
 DB_TABLES = {
