@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pipeline.text_parser import TextParser, ParsedLine
 from pipeline.matching_engine import MatchingEngine, MatchCandidate
 from services.gpt_validator import GPTValidator
-from database.supabase_client_v2 import SupabaseClientV2
+from database.supabase_client_legacy import get_supabase_client_legacy
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ProcessingPipeline:
         try:
             # Initialize Supabase client
             if not self.supabase_client:
-                self.supabase_client = SupabaseClientV2()
+                self.supabase_client = await get_supabase_client_legacy()
             
             # Parse input text into lines
             parsed_lines = self.text_parser.parse_text_input(input_text)
@@ -223,14 +223,30 @@ class ProcessingPipeline:
         """Load items from database"""
         try:
             if not self.supabase_client:
-                self.supabase_client = SupabaseClientV2()
+                self.supabase_client = await get_supabase_client_legacy()
             
-            # Query the items table
-            response = self.supabase_client.client.table('items').select('*').eq('is_active', True).execute()
+            # Query the parts_catalog table
+            response = self.supabase_client.client.table('parts_catalog').select('*').execute()
             
             if response.data:
                 logger.info(f"Loaded {len(response.data)} items from database")
-                return response.data
+                # Convert to new format
+                items = []
+                for item in response.data:
+                    items.append({
+                        'ku': item.get('sku', ''),
+                        'name': item.get('name', ''),
+                        'pack_qty': item.get('pack_size', 1),
+                        'price': item.get('price', 0),
+                        'is_active': True,
+                        'specs_json': {
+                            'diameter': item.get('diameter', ''),
+                            'length': item.get('length', ''),
+                            'strength_class': item.get('strength_class', ''),
+                            'coating': item.get('coating', '')
+                        }
+                    })
+                return items
             else:
                 logger.warning("No items found in database, using sample data")
                 # Fallback to sample data if database is empty
@@ -271,14 +287,30 @@ class ProcessingPipeline:
         """Load aliases from database"""
         try:
             if not self.supabase_client:
-                self.supabase_client = SupabaseClientV2()
+                self.supabase_client = await get_supabase_client_legacy()
             
-            # Query the sku_aliases table
-            response = self.supabase_client.client.table('sku_aliases').select('*').execute()
+            # Query the aliases table
+            response = self.supabase_client.client.table('aliases').select('*').execute()
             
             if response.data:
                 logger.info(f"Loaded {len(response.data)} aliases from database")
-                return response.data
+                # Convert to new format
+                aliases = []
+                for alias in response.data:
+                    # Parse maps_to JSON to get ku
+                    maps_to = alias.get('maps_to', {})
+                    if isinstance(maps_to, str):
+                        try:
+                            maps_to = json.loads(maps_to)
+                        except:
+                            maps_to = {}
+                    
+                    aliases.append({
+                        'alias': alias.get('alias', ''),
+                        'ku': maps_to.get('ku', '') if maps_to else '',
+                        'weight': alias.get('confidence', 1.0)
+                    })
+                return aliases
             else:
                 logger.warning("No aliases found in database, using sample data")
                 # Fallback to sample aliases

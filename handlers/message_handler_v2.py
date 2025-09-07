@@ -9,7 +9,7 @@ import tempfile
 from typing import Optional
 from telegram import Update, Message
 from telegram.ext import ContextTypes
-from database.supabase_client_v2 import get_supabase_client
+from database.supabase_client_legacy import get_supabase_client_legacy
 from pipeline.processing_pipeline import get_processing_pipeline
 from services.excel_generator_v2 import get_excel_generator_v2
 from services.openai_service import OpenAIService
@@ -37,7 +37,7 @@ class MessageHandlerV2:
             
             # Initialize Supabase client
             if not self.supabase_client:
-                self.supabase_client = await get_supabase_client()
+                self.supabase_client = await get_supabase_client_legacy()
             
             # Send processing message
             processing_msg = await message.reply_text("🔄 Обрабатываю ваш запрос...")
