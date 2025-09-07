@@ -300,13 +300,20 @@ class FullMessageHandler:
         try:
             logger.info(f"Начинаем поиск в базе данных с user_intent: {user_intent}")
             
+            # Используем тот же метод поиска, что и в pipeline
+            from pipeline.message_processor import search_parts_direct
+            
             # Если это множественный заказ
             if user_intent.get('is_multiple_order') and user_intent.get('items'):
                 logger.info("Обрабатываем множественный заказ")
                 all_results = []
                 for item in user_intent['items']:
                     logger.info(f"Поиск для позиции: {item}")
-                    results = await self.supabase_client.search_parts(item)
+                    
+                    # Формируем поисковый запрос
+                    search_query = f"{item.get('type', '')} {item.get('diameter', '')}x{item.get('length', '')}".strip()
+                    
+                    results = await search_parts_direct(search_query, item)
                     logger.info(f"Найдено {len(results)} результатов для позиции")
                     all_results.extend(results)
                 logger.info(f"Всего найдено {len(all_results)} результатов")
@@ -314,7 +321,11 @@ class FullMessageHandler:
             else:
                 # Одиночный поиск
                 logger.info("Одиночный поиск")
-                results = await self.supabase_client.search_parts(user_intent)
+                
+                # Формируем поисковый запрос
+                search_query = f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip()
+                
+                results = await search_parts_direct(search_query, user_intent)
                 logger.info(f"Найдено {len(results)} результатов")
                 return results
                 
@@ -418,23 +429,23 @@ class FullMessageHandler:
             raise
     
     def _convert_search_results_to_new_format(self, search_results: list, user_intent: dict) -> list:
-        """Преобразует данные из старого формата в новый формат для generate_excel"""
+        """Преобразует данные из формата search_parts_direct в новый формат для generate_excel"""
         converted_results = []
         
         for i, result in enumerate(search_results, 1):
             # Преобразуем данные в новый формат
             converted_result = {
                 'order_position': i,
-                'search_query': f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip(),
+                'search_query': result.get('search_query', f"{user_intent.get('type', '')} {user_intent.get('diameter', '')}x{user_intent.get('length', '')}".strip()),
                 'diameter': result.get('diameter', ''),
                 'length': result.get('length', ''),
                 'material': result.get('material', ''),
                 'coating': result.get('coating', ''),
                 'requested_quantity': user_intent.get('quantity', 1),
-                'confidence': result.get('confidence_score', 0) / 100 if result.get('confidence_score') else 0,
+                'confidence': result.get('confidence', 0),
                 'sku': result.get('sku', ''),
                 'name': result.get('name', ''),
-                'smart_probability': result.get('probability_percent', 0),
+                'smart_probability': result.get('smart_probability', 0),
                 'pack_size': result.get('pack_size', 0),
                 'unit': result.get('unit', 'шт')
             }
