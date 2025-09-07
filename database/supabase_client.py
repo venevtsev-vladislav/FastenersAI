@@ -424,3 +424,62 @@ def _rank_results_by_relevance(results: list, query: str) -> list:
     # Возвращаем только топ результаты (максимум 20)
     return ranked_results[:20]
 
+class SupabaseClient:
+    """Класс-обёртка для работы с Supabase"""
+    
+    def __init__(self):
+        self.client = None
+        self._init_client()
+    
+    def _init_client(self):
+        """Инициализирует клиент Supabase"""
+        try:
+            if not SUPABASE_URL or not SUPABASE_KEY:
+                logger.warning("Supabase credentials не настроены")
+                return
+            
+            self.client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            logger.info("Supabase клиент инициализирован")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации Supabase клиента: {e}")
+            self.client = None
+    
+    async def search_parts(self, user_intent: dict) -> list:
+        """Выполняет поиск деталей по user_intent"""
+        try:
+            if not self.client:
+                logger.warning("Supabase клиент не инициализирован")
+                return []
+            
+            # Создаем поисковый запрос из user_intent
+            query_parts = []
+            
+            if user_intent.get('type'):
+                query_parts.append(user_intent['type'])
+            
+            if user_intent.get('diameter'):
+                query_parts.append(user_intent['diameter'])
+            
+            if user_intent.get('length'):
+                query_parts.append(user_intent['length'])
+            
+            if user_intent.get('material'):
+                query_parts.append(user_intent['material'])
+            
+            if user_intent.get('standard'):
+                query_parts.append(user_intent['standard'])
+            
+            # Объединяем в поисковый запрос
+            search_query = " ".join(query_parts)
+            
+            if not search_query.strip():
+                logger.warning("Пустой поисковый запрос")
+                return []
+            
+            # Выполняем поиск
+            return await search_parts(search_query, user_intent)
+            
+        except Exception as e:
+            logger.error(f"Ошибка при поиске деталей: {e}")
+            return []
+

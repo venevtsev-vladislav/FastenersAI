@@ -314,3 +314,68 @@ class ExcelGenerator:
         
         return ""
 
+    async def generate_search_results_excel(self, search_results: list, user_intent: dict, original_query: str) -> str:
+        """Генерирует Excel файл с результатами поиска"""
+        try:
+            # Создаем временный файл
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx')
+            temp_file.close()
+            
+            # Создаем рабочую книгу
+            workbook = Workbook()
+            worksheet = workbook.active
+            worksheet.title = "Результаты поиска"
+            
+            # Заголовки
+            headers = [
+                "№", "Артикул", "Наименование", "Тип", "Диаметр", "Длина", 
+                "Материал", "Покрытие", "Стандарт", "Класс прочности", 
+                "Количество в упаковке", "Цена", "Примечания"
+            ]
+            
+            # Записываем заголовки
+            for col, header in enumerate(headers, 1):
+                cell = worksheet.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+            # Заполняем данными
+            for row, result in enumerate(search_results, 2):
+                worksheet.cell(row=row, column=1, value=row-1)  # №
+                worksheet.cell(row=row, column=2, value=result.get('sku', ''))  # Артикул
+                worksheet.cell(row=row, column=3, value=result.get('name', ''))  # Наименование
+                worksheet.cell(row=row, column=4, value=result.get('type', ''))  # Тип
+                worksheet.cell(row=row, column=5, value=result.get('diameter', ''))  # Диаметр
+                worksheet.cell(row=row, column=6, value=result.get('length', ''))  # Длина
+                worksheet.cell(row=row, column=7, value=result.get('material', ''))  # Материал
+                worksheet.cell(row=row, column=8, value=result.get('coating', ''))  # Покрытие
+                worksheet.cell(row=row, column=9, value=result.get('standard', ''))  # Стандарт
+                worksheet.cell(row=row, column=10, value=result.get('strength_class', ''))  # Класс прочности
+                worksheet.cell(row=row, column=11, value=result.get('pack_quantity', ''))  # Количество в упаковке
+                worksheet.cell(row=row, column=12, value=result.get('price', ''))  # Цена
+                worksheet.cell(row=row, column=13, value=result.get('notes', ''))  # Примечания
+            
+            # Автоматически подгоняем ширину колонок
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = get_column_letter(column[0].column)
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Сохраняем файл
+            workbook.save(temp_file.name)
+            
+            logger.info(f"Excel файл создан: {temp_file.name}")
+            return temp_file.name
+            
+        except Exception as e:
+            logger.error(f"Ошибка при создании Excel файла: {e}")
+            raise
+

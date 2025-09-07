@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 
 # Import existing handlers
 from handlers.command_handler import handle_start, handle_help
-from handlers.message_handler_lightweight import handle_message, handle_rating_callback
+from handlers.message_handler_full import handle_message, handle_rating_callback
 
 # Configuration
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
