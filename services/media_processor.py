@@ -23,20 +23,22 @@ class MediaProcessor:
     
     async def process_media_message(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
         """Обрабатывает медиа сообщение и возвращает результат"""
+        result: Optional[Dict[str, Any]] = None
         try:
             if message.photo:
-                return await self._process_photo(message, context)
+                result = await self._process_photo(message, context)
             elif message.voice:
-                return await self._process_voice(message, context)
+                result = await self._process_voice(message, context)
             elif message.document:
-                return await self._process_document(message, context)
+                result = await self._process_document(message, context)
             else:
                 logger.warning(f"Неподдерживаемый тип медиа: {message.content_type}")
-                return None
-                
         except Exception as e:
             logger.error(f"Ошибка при обработке медиа: {e}")
-            return None
+        finally:
+            self.cleanup_temp_files()
+        return result
+
     
     async def _process_photo(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
         """Обрабатывает фотографию"""
