@@ -46,7 +46,15 @@ class TextNormalizer:
             'болт din': ['din болт', 'болт по din'],
             'винт din': ['din винт', 'винт по din'],
         }
-        
+
+        # Russian colloquial size words -> metric thread (e.g. "шестерка" -> "M6")
+        self.word_size_patterns = [
+            (r'шестер[какуи]?', 'M6'),
+            (r'десят[какуи]?', 'M10'),
+            (r'двенаш[какуи]?', 'M12'),
+            (r'двенадцат[какуи]?', 'M12'),
+        ]
+
         # Quantity extraction patterns
         self.qty_patterns = [
             r'(\d+)\s*шт',
@@ -63,7 +71,11 @@ class TextNormalizer:
             return ""
         
         normalized = text.strip()
-        
+
+        # Replace colloquial size words with metric thread notation
+        for pattern, repl in self.word_size_patterns:
+            normalized = re.sub(pattern, repl, normalized, flags=re.IGNORECASE)
+
         # Apply size normalization
         for pattern, replacement in self.size_patterns:
             normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
