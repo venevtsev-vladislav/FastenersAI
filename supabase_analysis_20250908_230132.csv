@@ -1,0 +1,5 @@
+request_id,user_id,chat_id,request_type,original_content,created_at,item_number,item_type,item_diameter,item_length,item_material,item_coating,item_quantity,item_confidence,item_standard,item_subtype
+2fd91a40-ba36-441c-9cdd-414003bef3e1,987654321,123456789,test,"Анкер с кольцом м8 10х100 (30шт)
+Анкер с кольцом м12 16х130 (10шт)",2025-09-08T19:56:53.799518+00:00,1,анкер,M8,10х100 мм,,,30шт,0.95,,
+2fd91a40-ba36-441c-9cdd-414003bef3e1,987654321,123456789,test,"Анкер с кольцом м8 10х100 (30шт)
+Анкер с кольцом м12 16х130 (10шт)",2025-09-08T19:56:53.799518+00:00,2,анкер,M12,16х130 мм,,,10шт,0.95,,
