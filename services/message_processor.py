@@ -45,84 +45,39 @@ class MessageProcessor:
     async def _process_text_message(self, message: Message) -> dict:
         """Обрабатывает текстовое сообщение"""
         text = message.text.strip()
-        
-        # Умный анализ намерения пользователя (встроенный SmartParser)
-        try:
-            # Определяем нужен ли GPT
-            need_gpt, reason, basic_intent = self._analyze_query_complexity(text)
-            
-            if need_gpt:
-                logger.info(f"🔍 Встроенный SmartParser: ИИ ассистент необходим для: {reason}")
-                # Используем ассистента с векторным хранилищем для сложных запросов
-                assistant_result = await self.openai_service.analyze_with_assistant(text)
-                logger.info(f"Ассистент анализ успешен: {assistant_result}")
-                
-                # Обрабатываем результат ассистента
-                if isinstance(assistant_result, dict) and 'items' in assistant_result:
-                    # Если это массив items, обрабатываем как множественный заказ
-                    if assistant_result['items'] and len(assistant_result['items']) > 0:
-                        user_intent = {
-                            'is_multiple_order': True,
-                            'items': assistant_result['items']
-                        }
-                    else:
-                        user_intent = {}
+
+        need_gpt, reason, basic_intent = self._analyze_query_complexity(text)
+
+        if need_gpt:
+            logger.info(f"🔍 Встроенный SmartParser: ИИ ассистент необходим для: {reason}")
+            assistant_result = await self.openai_service.analyze_with_assistant(text)
+            logger.info(f"Ассистент анализ успешен: {assistant_result}")
+
+            if isinstance(assistant_result, dict) and 'items' in assistant_result:
+                if assistant_result['items'] and len(assistant_result['items']) > 0:
+                    user_intent = {'is_multiple_order': True, 'items': assistant_result['items']}
                 else:
-                    # Если это один объект
-                    user_intent = assistant_result
+                    user_intent = {}
             else:
-                logger.info(f"🔍 Встроенный SmartParser: GPT НЕ нужен: {reason}")
-                # Используем базовый user_intent
-                user_intent = basic_intent
-            
-            # Если не удалось распознать, создаем базовый user_intent
-            if not user_intent or user_intent.get('type') == 'неизвестно':
-                logger.info("🔍 Не удалось распознать, создаем базовый user_intent")
-                user_intent = self._create_basic_user_intent(text)
-            # Нормализуем формат: если пришел список позиций, оборачиваем в объект множественного заказа
-            if isinstance(user_intent, list):
-                user_intent = { 'is_multiple_order': True, 'items': user_intent }
-            
-            return {
-                'type': 'text',
-                'original_content': text,
-                'processed_text': text,
-                'user_intent': user_intent
-            }
-                
-        except Exception as e:
-            logger.error(f"Ошибка при анализе через SmartParser: {e}")
-            # Fallback: используем ассистента, затем базовый разбор при неудаче
-            try:
-                assistant_result = await self.openai_service.analyze_with_assistant(text)
-                logger.info(f"Fallback ассистент анализ успешен: {assistant_result}")
-                if not assistant_result or (isinstance(assistant_result, dict) and assistant_result.get('type') == 'неизвестно'):
-                    user_intent = self._create_basic_user_intent(text)
-                else:
-                    # Обрабатываем результат ассистента (может быть массив items или один объект)
-                    if isinstance(assistant_result, dict) and 'items' in assistant_result:
-                        # Если это массив items, обрабатываем как множественный заказ
-                        if assistant_result['items'] and len(assistant_result['items']) > 0:
-                            user_intent = {
-                                'is_multiple_order': True,
-                                'items': assistant_result['items']
-                            }
-                        else:
-                            user_intent = {}
-                    else:
-                        # Если это один объект
-                        user_intent = assistant_result
-            except Exception as gpt_error:
-                logger.error(f"Fallback GPT также не сработал: {gpt_error}")
-                user_intent = self._create_basic_user_intent(text)
-            
-            return {
-                'type': 'text',
-                'original_content': text,
-                'processed_text': text,
-                'user_intent': user_intent
-            }
-    
+                user_intent = assistant_result
+        else:
+            logger.info(f"🔍 Встроенный SmartParser: GPT НЕ нужен: {reason}")
+            user_intent = basic_intent
+
+        if not user_intent or user_intent.get('type') in ('неизвестно', 'unknown'):
+            logger.info("🔍 Не удалось распознать, создаем базовый user_intent")
+            user_intent = self._create_basic_user_intent(text)
+
+        if isinstance(user_intent, list):
+            user_intent = {'is_multiple_order': True, 'items': user_intent}
+
+        return {
+            'type': 'text',
+            'original_content': text,
+            'processed_text': text,
+            'user_intent': user_intent
+        }
+
     async def _process_voice_message(self, message: Message) -> dict:
         """Обрабатывает голосовое сообщение"""
         try:
@@ -326,7 +281,7 @@ class MessageProcessor:
         text_lower = text.lower()
         
         # Определяем тип
-        detected_type = 'саморез'
+        detected_type = None
         if 'болт' in text_lower:
             detected_type = 'болт'
         elif 'винт' in text_lower:
@@ -354,10 +309,10 @@ class MessageProcessor:
             quantity = int(qty_match.group(1))
         
         return {
-            'type': detected_type,
+            'type': detected_type or 'unknown',
             'diameter': diameter,
             'length': length,
             'quantity': quantity,
-            'confidence': 0.7
+            'confidence': 0.7 if detected_type else 0
         }
 
