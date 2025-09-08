@@ -125,6 +125,7 @@ class ProcessingPipeline:
 
             chosen_candidate = None
             if should_auto_accept and best_candidate:
+                logger.info("Auto-accepted candidate without GPT validation")
                 # Auto-accept
                 chosen_candidate = best_candidate
                 chosen_ku = best_candidate.ku
