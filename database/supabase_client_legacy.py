@@ -66,6 +66,46 @@ class SupabaseClientLegacy:
             logger.error(f"Error creating request: {e}")
             raise
     
+    async def create_request_with_gpt_result(self, chat_id: str, user_id: str, source: str,
+                                           original_content: str, gpt_result: dict,
+                                           storage_uri: Optional[str] = None) -> str:
+        """Create a new request record with GPT result"""
+        try:
+            if not self.client:
+                raise Exception("Supabase client not initialized")
+            
+            # Prepare user_intent with GPT result
+            user_intent = {
+                'source': source,
+                'storage_uri': storage_uri,
+                'gpt_result': gpt_result,
+                'original_content': original_content,
+                'processed_at': datetime.now().isoformat()
+            }
+            
+            request_data = {
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'request_type': source,
+                'original_content': original_content,
+                'processed_text': json.dumps(gpt_result, ensure_ascii=False),
+                'user_intent': json.dumps(user_intent, ensure_ascii=False),
+                'created_at': 'now()'
+            }
+            
+            response = self.client.table(DB_TABLES['user_requests']).insert(request_data).execute()
+            
+            if response.data:
+                request_id = str(response.data[0]['id'])
+                logger.info(f"Created request {request_id} with GPT result")
+                return request_id
+            else:
+                raise Exception("Failed to create request with GPT result")
+                
+        except Exception as e:
+            logger.error(f"Error creating request with GPT result: {e}")
+            raise
+    
     async def create_request_line(self, request_id: str, line_no: int, raw_text: str, 
                                 normalized_text: Optional[str] = None) -> int:
         """Create a request line record - using user_requests for now"""

@@ -93,22 +93,24 @@ class MessageHandlerV2:
             # Log the incoming text message
             log_processing_pipeline("TEXT_MESSAGE_RECEIVED", {"text": text[:200]}, user_id, chat_id)
             
-            # Create request
-            request_id = await self.supabase_client.create_request(
-                chat_id=chat_id,
-                user_id=user_id,
-                source='text'
-            )
-            
-            log_processing_pipeline("REQUEST_CREATED", {"request_id": request_id}, user_id, chat_id)
-            
-            # Process with GPT Assistant directly
+            # Process with GPT Assistant directly first
             log_processing_pipeline("STARTING_GPT_ANALYSIS", {"input_text": text[:200]}, user_id, chat_id)
             
             # Use GPT Assistant for analysis
             gpt_result = await self.openai_service.analyze_with_assistant(text)
             
             log_processing_pipeline("GPT_ANALYSIS_COMPLETED", {"gpt_result": gpt_result}, user_id, chat_id)
+            
+            # Create request with GPT result
+            request_id = await self.supabase_client.create_request_with_gpt_result(
+                chat_id=chat_id,
+                user_id=user_id,
+                source='text',
+                original_content=text,
+                gpt_result=gpt_result
+            )
+            
+            log_processing_pipeline("REQUEST_CREATED", {"request_id": request_id, "gpt_result_saved": True}, user_id, chat_id)
             
             # Convert GPT result to processing results format
             results = self._convert_gpt_result_to_processing_results(gpt_result, request_id)
