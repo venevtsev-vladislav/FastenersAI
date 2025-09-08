@@ -102,13 +102,16 @@ class MessageHandlerV2:
             
             log_processing_pipeline("REQUEST_CREATED", {"request_id": request_id}, user_id, chat_id)
             
-            # Process request with detailed GPT logging
-            log_processing_pipeline("STARTING_PROCESSING", {"input_text": text[:200]}, user_id, chat_id)
-            results = await self.processing_pipeline.process_request(
-                request_id=request_id,
-                input_text=text,
-                source='text'
-            )
+            # Process with GPT Assistant directly
+            log_processing_pipeline("STARTING_GPT_ANALYSIS", {"input_text": text[:200]}, user_id, chat_id)
+            
+            # Use GPT Assistant for analysis
+            gpt_result = await self.openai_service.analyze_with_assistant(text)
+            
+            log_processing_pipeline("GPT_ANALYSIS_COMPLETED", {"gpt_result": gpt_result}, user_id, chat_id)
+            
+            # Convert GPT result to processing results format
+            results = self._convert_gpt_result_to_processing_results(gpt_result, request_id)
             
             log_processing_pipeline("PROCESSING_COMPLETED", {"results_count": len(results) if results else 0}, user_id, chat_id)
             
@@ -339,6 +342,59 @@ class MessageHandlerV2:
         # This would use actual Excel parser with openpyxl
         # For now, return sample data
         return ["Анкер клиновой М10х100", "Болт DIN 933 М12х40"]
+    
+    def _convert_gpt_result_to_processing_results(self, gpt_result: dict, request_id: str) -> list:
+        """Convert GPT result to processing results format"""
+        try:
+            from pipeline.processing_pipeline import ProcessingResult
+            
+            results = []
+            
+            if not gpt_result:
+                return results
+            
+            # Handle multiple items
+            if 'items' in gpt_result and isinstance(gpt_result['items'], list):
+                for i, item in enumerate(gpt_result['items'], 1):
+                    result = ProcessingResult(
+                        line_id=f"{request_id}_line_{i}",
+                        raw_text=f"{item.get('type', '')} {item.get('diameter', '')} {item.get('length', '')} {item.get('quantity', '')}",
+                        normalized_text=f"{item.get('type', '')} {item.get('diameter', '')} {item.get('length', '')} {item.get('quantity', '')}",
+                        chosen_ku=None,  # No specific KU from GPT
+                        qty_packs=None,
+                        qty_units=None,
+                        unit='шт',
+                        price=None,
+                        total=None,
+                        status='ok' if item.get('confidence', 0) > 0.5 else 'needs_review',
+                        chosen_method='gpt',
+                        candidates=[]
+                    )
+                    results.append(result)
+            
+            # Handle single item
+            elif isinstance(gpt_result, dict) and 'type' in gpt_result:
+                result = ProcessingResult(
+                    line_id=f"{request_id}_line_1",
+                    raw_text=f"{gpt_result.get('type', '')} {gpt_result.get('diameter', '')} {gpt_result.get('length', '')} {gpt_result.get('quantity', '')}",
+                    normalized_text=f"{gpt_result.get('type', '')} {gpt_result.get('diameter', '')} {gpt_result.get('length', '')} {gpt_result.get('quantity', '')}",
+                    chosen_ku=None,
+                    qty_packs=None,
+                    qty_units=None,
+                    unit='шт',
+                    price=None,
+                    total=None,
+                    status='ok' if gpt_result.get('confidence', 0) > 0.5 else 'needs_review',
+                    chosen_method='gpt',
+                    candidates=[]
+                )
+                results.append(result)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error converting GPT result: {e}")
+            return []
 
 # Global message handler instance
 _message_handler_v2 = None
