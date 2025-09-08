@@ -46,11 +46,11 @@ class MessageHandlerV2:
             if message.text:
                 await self._handle_text_message(message, user_id, chat_id)
             elif message.photo:
-                await self._handle_photo_message(message, user_id, chat_id)
+                await self._handle_photo_message(message, user_id, chat_id, context)
             elif message.voice:
-                await self._handle_voice_message(message, user_id, chat_id)
+                await self._handle_voice_message(message, user_id, chat_id, context)
             elif message.document:
-                await self._handle_document_message(message, user_id, chat_id)
+                await self._handle_document_message(message, user_id, chat_id, context)
             else:
                 await message.reply_text("❌ Неподдерживаемый тип сообщения")
                 return
@@ -106,7 +106,8 @@ class MessageHandlerV2:
             logger.error(f"Error handling text message: {e}")
             await message.reply_text("❌ Ошибка обработки текстового сообщения")
     
-    async def _handle_photo_message(self, message: Message, user_id: str, chat_id: str):
+    async def _handle_photo_message(self, message: Message, user_id: str, chat_id: str,
+                                    context: ContextTypes.DEFAULT_TYPE):
         """Handle photo messages with OCR"""
         try:
             # Get the highest resolution photo
@@ -161,7 +162,8 @@ class MessageHandlerV2:
             logger.error(f"Error handling photo message: {e}")
             await message.reply_text("❌ Ошибка обработки изображения")
     
-    async def _handle_voice_message(self, message: Message, user_id: str, chat_id: str):
+    async def _handle_voice_message(self, message: Message, user_id: str, chat_id: str,
+                                    context: ContextTypes.DEFAULT_TYPE):
         """Handle voice messages with speech-to-text"""
         try:
             # Get voice file
@@ -214,7 +216,8 @@ class MessageHandlerV2:
             logger.error(f"Error handling voice message: {e}")
             await message.reply_text("❌ Ошибка обработки голосового сообщения")
     
-    async def _handle_document_message(self, message: Message, user_id: str, chat_id: str):
+    async def _handle_document_message(self, message: Message, user_id: str, chat_id: str,
+                                       context: ContextTypes.DEFAULT_TYPE):
         """Handle document messages (Excel files)"""
         try:
             document = message.document
