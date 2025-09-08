@@ -8,6 +8,7 @@ import tempfile
 from typing import Optional, Dict, Any
 from telegram import Message
 from telegram.ext import ContextTypes
+from config import MAX_FILE_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,6 @@ class MediaProcessor:
     
     # Поддерживаемые типы файлов
     SUPPORTED_DOCUMENT_TYPES = ['.xlsx', '.xls', '.pdf']
-    MAX_FILE_SIZE = 1024 * 1024  # 1 MB
     
     def __init__(self):
         self.temp_files = []  # Для отслеживания временных файлов
@@ -105,11 +105,11 @@ class MediaProcessor:
             document = message.document
             
             # Проверяем размер файла
-            if document.file_size and document.file_size > self.MAX_FILE_SIZE:
+            if document.file_size and document.file_size > MAX_FILE_SIZE:
                 logger.warning(f"Файл слишком большой: {document.file_size} байт")
                 return {
                     'type': 'document',
-                    'error': f'Файл слишком большой. Максимальный размер: {self.MAX_FILE_SIZE // 1024} KB'
+                    'error': f'Файл слишком большой. Максимальный размер: {MAX_FILE_SIZE // (1024 * 1024)} MB'
                 }
             
             # Проверяем тип файла
