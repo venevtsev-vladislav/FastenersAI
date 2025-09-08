@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastenersAI Bot - Простая версия с webhook для Railway
+FastenersAI Bot - Полная версия с webhook для Railway
 """
 
 import os
@@ -11,7 +11,7 @@ from telegram.ext import ContextTypes
 
 # Импорт обработчиков
 from handlers.command_handler import handle_start, handle_help
-from handlers.message_handler_lightweight import handle_message, handle_rating_callback
+from handlers.message_handler import handle_message, handle_rating_callback
 
 # Настройка логирования
 logging.basicConfig(
@@ -37,7 +37,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ **Статус бота:**\n"
         "🟢 Онлайн и готов к работе\n"
         "🌐 Режим: Webhook\n"
-        "🔧 Версия: Lightweight (без NumPy/Pandas)\n"
+        "🔧 Версия: Full (AI pipeline)\n"
         "📡 Платформа: Railway"
     )
 
@@ -45,7 +45,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     """Основная функция запуска бота"""
     try:
-        logger.info(f"Запуск FastenersAI Bot (Lightweight версия v2.1)")
+        logger.info("Запуск FastenersAI Bot (Full версия)")
         logger.info(f"Порт: {PORT}")
         logger.info(f"Webhook URL: {WEBHOOK_URL}")
         logger.info(f"Версия: 2025-09-07 13:15 - Проверка подключения Railway к Git")
