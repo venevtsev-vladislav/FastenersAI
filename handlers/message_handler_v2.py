@@ -14,6 +14,23 @@ from pipeline.processing_pipeline import get_processing_pipeline
 from services.excel_generator_v2 import get_excel_generator_v2
 from services.openai_service import OpenAIService
 
+# Import enhanced logging
+try:
+    from railway_logging import log_gpt_request, log_gpt_response, log_processing_pipeline, log_error
+except ImportError:
+    # Fallback if railway_logging is not available
+    def log_gpt_request(text, user_id=None, chat_id=None):
+        logging.info(f"🤖 GPT ЗАПРОС | user_id={user_id} | chat_id={chat_id} | text={text[:100]}...")
+    
+    def log_gpt_response(response, user_id=None, chat_id=None):
+        logging.info(f"✅ GPT ОТВЕТ | user_id={user_id} | chat_id={chat_id} | response={response}")
+    
+    def log_processing_pipeline(step, data=None, user_id=None, chat_id=None):
+        logging.info(f"🔄 PIPELINE {step} | user_id={user_id} | chat_id={chat_id}")
+    
+    def log_error(error, context=None, user_id=None, chat_id=None):
+        logging.error(f"❌ ОШИБКА | context={context} | user_id={user_id} | chat_id={chat_id} | error={str(error)}")
+
 logger = logging.getLogger(__name__)
 
 class MessageHandlerV2:
@@ -73,6 +90,9 @@ class MessageHandlerV2:
                 await message.reply_text("❌ Пустое сообщение")
                 return
             
+            # Log the incoming text message
+            log_processing_pipeline("TEXT_MESSAGE_RECEIVED", {"text": text[:200]}, user_id, chat_id)
+            
             # Create request
             request_id = await self.supabase_client.create_request(
                 chat_id=chat_id,
@@ -80,12 +100,17 @@ class MessageHandlerV2:
                 source='text'
             )
             
-            # Process request
+            log_processing_pipeline("REQUEST_CREATED", {"request_id": request_id}, user_id, chat_id)
+            
+            # Process request with detailed GPT logging
+            log_processing_pipeline("STARTING_PROCESSING", {"input_text": text[:200]}, user_id, chat_id)
             results = await self.processing_pipeline.process_request(
                 request_id=request_id,
                 input_text=text,
                 source='text'
             )
+            
+            log_processing_pipeline("PROCESSING_COMPLETED", {"results_count": len(results) if results else 0}, user_id, chat_id)
             
             # Generate Excel
             request_data = {
@@ -99,11 +124,15 @@ class MessageHandlerV2:
                 request_data=request_data
             )
             
+            log_processing_pipeline("EXCEL_GENERATED", {"file": excel_file}, user_id, chat_id)
+            
             # Send Excel file
             await self._send_excel_file(message, excel_file, request_id)
             
+            log_processing_pipeline("RESPONSE_SENT", {"request_id": request_id}, user_id, chat_id)
+            
         except Exception as e:
-            logger.error(f"Error handling text message: {e}")
+            log_error(e, "TEXT_MESSAGE_HANDLING", user_id, chat_id)
             await message.reply_text("❌ Ошибка обработки текстового сообщения")
     
     async def _handle_photo_message(self, message: Message, user_id: str, chat_id: str,

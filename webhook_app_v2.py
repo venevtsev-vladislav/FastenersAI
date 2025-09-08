@@ -15,6 +15,9 @@ from telegram.ext import ContextTypes
 from handlers.command_handler import handle_start, handle_help
 from handlers.message_handler_v2 import handle_message_v2
 
+# Import improved logging
+from railway_logging import setup_railway_logging, log_telegram_message, log_error
+
 # Configuration
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 SECRET = os.getenv('TG_WEBHOOK_SECRET', '')
@@ -22,8 +25,8 @@ SECRET = os.getenv('TG_WEBHOOK_SECRET', '')
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN must be set")
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Setup improved logging for Railway
+setup_railway_logging()
 log = logging.getLogger('webhook_v2')
 
 # Create FastAPI app
@@ -59,7 +62,7 @@ async def initialize_bot():
         application.add_handler(MessageHandler(filters.VOICE, handle_message_v2))
         application.add_handler(MessageHandler(filters.Document.ALL, handle_message_v2))
         
-        # Add logging handler
+        # Add enhanced logging handler
         async def log_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message_type = 'unknown'
             if update.effective_message:
@@ -73,7 +76,10 @@ async def initialize_bot():
                     message_type = 'document'
                 else:
                     message_type = 'other'
-            log.info(f"📨 Получено обновление: {update.update_id}, тип: {message_type}")
+            
+            # Use enhanced logging
+            update_data = update.to_dict()
+            log_telegram_message(update_data, message_type)
         
         application.add_handler(MessageHandler(filters.ALL, log_update), group=1)
         

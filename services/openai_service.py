@@ -116,6 +116,18 @@ class OpenAIService:
     async def analyze_with_assistant(self, text: str) -> dict:
         """Анализирует намерение пользователя через ассистента с векторным хранилищем (Assistants API v2)."""
         try:
+            # Import enhanced logging
+            try:
+                from railway_logging import log_gpt_request, log_gpt_response
+            except ImportError:
+                def log_gpt_request(text, user_id=None, chat_id=None):
+                    logger.info(f"🤖 GPT ЗАПРОС | user_id={user_id} | chat_id={chat_id} | text={text[:100]}...")
+                
+                def log_gpt_response(response, user_id=None, chat_id=None):
+                    logger.info(f"✅ GPT ОТВЕТ | user_id={user_id} | chat_id={chat_id} | response={response}")
+            
+            # Log GPT request
+            log_gpt_request(text)
             logger.info(f"Анализ через ассистента с векторным хранилищем: {text[:100]}...")
 
             # Создаем thread (заголовок v2 задан на клиенте через default_headers)
@@ -156,6 +168,10 @@ class OpenAIService:
                 try:
                     result = json.loads(assistant_message)
                     logger.info(f"Ассистент анализ успешен: {result}")
+                    
+                    # Log GPT response with detailed JSON
+                    log_gpt_response(result)
+                    
                     return result
                 except json.JSONDecodeError as json_error:
                     logger.error(f"Ошибка парсинга JSON от ассистента: {json_error}")
