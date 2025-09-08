@@ -113,11 +113,12 @@ class ProcessingPipeline:
             candidates = await self.matching_engine.find_candidates(
                 parsed_line, items, aliases
             )
-            
+
             # Save candidates to database
+            logger.info(f"Found {len(candidates)} candidates for line")
             for candidate in candidates:
                 # Add candidates to database (simplified for testing)
-                logger.info(f"Found {len(candidates)} candidates for line")
+                pass
             
             # Check if we should auto-accept
             should_auto_accept, best_candidate = self.matching_engine.should_auto_accept(candidates)
