@@ -76,20 +76,7 @@ class OpenAIService:
                 
         except Exception as e:
             logger.error(f"Ошибка при анализе через GPT: {e}")
-            return {
-                "type": "неизвестно",
-                "diameter": None,
-                "length": None,
-                "material": None,
-                "coating": None,
-                "head_type": None,
-                "standard": None,
-                "quantity": None,
-                "additional_features": [],
-                "confidence": 0.0,
-                "raw_text": text,
-                "error": str(e)
-            }
+            raise
     
     async def search_query_optimization(self, user_intent: dict) -> str:
         """Оптимизирует поисковый запрос на основе анализа GPT"""

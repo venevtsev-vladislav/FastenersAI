@@ -471,59 +471,52 @@ class MessagePipeline:
 
 async def search_parts_direct(query: str, user_intent: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Прямой вызов Edge Function для поиска деталей"""
-    try:
-        supabase_url = os.getenv('SUPABASE_URL')
-        supabase_key = os.getenv('SUPABASE_KEY')
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_KEY')
 
-        if not supabase_url or not supabase_key:
-            logger.error("Не настроены переменные окружения SUPABASE_URL или SUPABASE_KEY")
-            return []
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("SUPABASE_URL и SUPABASE_KEY должны быть установлены")
 
-        edge_function_url = f"{supabase_url}/functions/v1/fastener-search"
+    edge_function_url = f"{supabase_url}/functions/v1/fastener-search"
 
-        headers = {
-            "Authorization": f"Bearer {supabase_key}",
-            "Content-Type": "application/json"
-        }
+    headers = {
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json"
+    }
 
-        payload = {
-            "search_query": query,
-            "user_intent": user_intent
-        }
+    payload = {
+        "search_query": query,
+        "user_intent": user_intent
+    }
 
-        logger.info(f"Вызываем Edge Function: {edge_function_url}")
-        logger.info(f"Payload: {payload}")
+    logger.info(f"Вызываем Edge Function: {edge_function_url}")
+    logger.info(f"Payload: {payload}")
 
-        timeout = aiohttp.ClientTimeout(total=30)
-        max_retries = 3
+    timeout = aiohttp.ClientTimeout(total=30)
+    max_retries = 3
+    last_error: Optional[Exception] = None
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"Попытка {attempt}/{max_retries} вызова Edge Function")
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.post(edge_function_url, json=payload, headers=headers) as response:
-                        if response.status == 200:
-                            result = await response.json()
-                            results = result.get('results', [])
-                            logger.info(f"Edge Function вернул {len(results)} результатов на попытке {attempt}")
-                            return results
-                        else:
-                            error_text = await response.text()
-                            logger.warning(f"Попытка {attempt} завершилась ошибкой {response.status}: {error_text}")
-            except Exception as e:
-                logger.error(f"Попытка {attempt} вызова Edge Function завершилась исключением: {e}")
-
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Попытка {attempt}/{max_retries} вызова Edge Function")
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(edge_function_url, json=payload, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise RuntimeError(f"Edge Function error {response.status}: {error_text}")
+                    result = await response.json()
+                    results = result.get('results', [])
+                    logger.info(f"Edge Function вернул {len(results)} результатов на попытке {attempt}")
+                    return results
+        except Exception as e:
+            logger.error(f"Попытка {attempt} вызова Edge Function завершилась исключением: {e}")
+            last_error = e
             if attempt < max_retries:
                 delay = 2 ** (attempt - 1)
                 logger.info(f"Повтор через {delay} с")
                 await asyncio.sleep(delay)
 
-        logger.error("Все попытки вызова Edge Function завершились неудачей")
-        return []
-
-    except Exception as e:
-        logger.error(f"Ошибка при подготовке вызова Edge Function: {e}")
-        return []
+    raise RuntimeError(f"Edge Function call failed after {max_retries} attempts: {last_error}")
 
 
 
