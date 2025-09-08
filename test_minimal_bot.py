@@ -24,7 +24,10 @@ def main():
     """Основная функция"""
     try:
         logger.info("Запускаем минимальный бот...")
-        
+
+        if not TELEGRAM_TOKEN:
+            raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения")
+
         # Создаем приложение
         application = Application.builder().token(TELEGRAM_TOKEN).build()
         
