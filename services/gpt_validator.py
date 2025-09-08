@@ -57,7 +57,9 @@ class GPTValidator:
             # Parse response
             result = self._parse_gpt_response(response)
             
-            logger.info(f"GPT validation result: {result.decision} (confidence: {result.confidence})")
+            logger.info(
+                f"GPT validation result: {result.decision} (confidence: {result.confidence}) reason: {result.reason}"
+            )
             
             return result
             
