@@ -18,7 +18,6 @@ from services.excel_generator import ExcelGenerator
 from config import MIN_PROBABILITY_THRESHOLD
 
 import os
-from dotenv import load_dotenv
 import aiohttp
 
 logger = get_logger(__name__)
@@ -473,48 +472,57 @@ class MessagePipeline:
 async def search_parts_direct(query: str, user_intent: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Прямой вызов Edge Function для поиска деталей"""
     try:
-        # Загружаем переменные окружения
-        load_dotenv()
         supabase_url = os.getenv('SUPABASE_URL')
         supabase_key = os.getenv('SUPABASE_KEY')
-        
+
         if not supabase_url or not supabase_key:
             logger.error("Не настроены переменные окружения SUPABASE_URL или SUPABASE_KEY")
             return []
-        
-        # URL Edge Function
+
         edge_function_url = f"{supabase_url}/functions/v1/fastener-search"
-        
-        # Заголовки для авторизации
+
         headers = {
             "Authorization": f"Bearer {supabase_key}",
             "Content-Type": "application/json"
         }
-        
-        # Данные для поиска
+
         payload = {
             "search_query": query,
             "user_intent": user_intent
         }
-        
+
         logger.info(f"Вызываем Edge Function: {edge_function_url}")
         logger.info(f"Payload: {payload}")
-        
-        # Делаем POST запрос
-        async with aiohttp.ClientSession() as session:
-            async with session.post(edge_function_url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    results = result.get('results', [])
-                    logger.info(f"Edge Function вернул {len(results)} результатов")
-                    return results
-                else:
-                    error_text = await response.text()
-                    logger.error(f"Edge Function вернул ошибку {response.status}: {error_text}")
-                    return []
-                    
+
+        timeout = aiohttp.ClientTimeout(total=30)
+        max_retries = 3
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Попытка {attempt}/{max_retries} вызова Edge Function")
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.post(edge_function_url, json=payload, headers=headers) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            results = result.get('results', [])
+                            logger.info(f"Edge Function вернул {len(results)} результатов на попытке {attempt}")
+                            return results
+                        else:
+                            error_text = await response.text()
+                            logger.warning(f"Попытка {attempt} завершилась ошибкой {response.status}: {error_text}")
+            except Exception as e:
+                logger.error(f"Попытка {attempt} вызова Edge Function завершилась исключением: {e}")
+
+            if attempt < max_retries:
+                delay = 2 ** (attempt - 1)
+                logger.info(f"Повтор через {delay} с")
+                await asyncio.sleep(delay)
+
+        logger.error("Все попытки вызова Edge Function завершились неудачей")
+        return []
+
     except Exception as e:
-        logger.error(f"Ошибка при вызове Edge Function: {e}")
+        logger.error(f"Ошибка при подготовке вызова Edge Function: {e}")
         return []
 
 
