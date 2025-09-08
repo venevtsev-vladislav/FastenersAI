@@ -8,6 +8,7 @@ import re
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from pipeline.text_parser import ParsedLine
+from database.supabase_client import search_parts
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,28 @@ class MatchingEngine:
         # 2. Fuzzy name/specs match
         fuzzy_candidates = await self._find_fuzzy_matches(parsed_line, items)
         candidates.extend(fuzzy_candidates)
-        
+
+        # Fallback to Supabase search if no local candidates
+        if not candidates:
+            logger.info("No local candidates found, performing Supabase search")
+            try:
+                supabase_results = await search_parts(parsed_line.raw_text, parsed_line.extracted_params or {})
+                for res in supabase_results:
+                    candidates.append(
+                        MatchCandidate(
+                            ku=res.get('sku', ''),
+                            name=res.get('name', ''),
+                            pack_qty=res.get('pack_size'),
+                            price=res.get('price'),
+                            unit=res.get('unit'),
+                            score=(res.get('probability_percent', 0) or 0) / 100,
+                            explanation=res.get('match_reason', 'Supabase search'),
+                            source='vector',
+                        )
+                    )
+            except Exception as e:
+                logger.error(f"Supabase search failed: {e}")
+
         # 3. Apply type filter
         candidates = self._apply_type_filter(parsed_line, candidates)
         

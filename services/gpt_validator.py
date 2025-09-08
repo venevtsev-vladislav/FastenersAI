@@ -38,10 +38,14 @@ class GPTValidator:
                     confidence=0.0,
                     reason='No candidates provided'
                 )
-            
+
+            logger.info(
+                f"Sending line '{parsed_line.raw_text}' with {len(candidates)} candidates to GPT"
+            )
+
             # Prepare prompt
             prompt = self._build_validation_prompt(parsed_line, candidates)
-            
+
             # Call GPT
             response = await self.openai_service.call_gpt(
                 prompt=prompt,
