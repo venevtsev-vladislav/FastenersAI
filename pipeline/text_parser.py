@@ -46,7 +46,15 @@ class TextNormalizer:
             'болт din': ['din болт', 'болт по din'],
             'винт din': ['din винт', 'винт по din'],
         }
-        
+
+        # Russian colloquial size words -> metric thread (e.g. "шестерка" -> "M6")
+        self.word_size_patterns = [
+            (r'шестер[какуи]?', 'M6'),
+            (r'десят[какуи]?', 'M10'),
+            (r'двенаш[какуи]?', 'M12'),
+            (r'двенадцат[какуи]?', 'M12'),
+        ]
+
         # Quantity extraction patterns
         self.qty_patterns = [
             r'(\d+)\s*шт',
@@ -63,7 +71,11 @@ class TextNormalizer:
             return ""
         
         normalized = text.strip()
-        
+
+        # Replace colloquial size words with metric thread notation
+        for pattern, repl in self.word_size_patterns:
+            normalized = re.sub(pattern, repl, normalized, flags=re.IGNORECASE)
+
         # Apply size normalization
         for pattern, replacement in self.size_patterns:
             normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
@@ -164,31 +176,33 @@ class TextParser:
         
         # Split by common delimiters (comma removed to keep numbers like "4,0" intact)
         lines = re.split(r'[\n;\t]+', text)
-        
+
         parsed_lines = []
         for i, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
-            
+
+            # Remove common bullet/list markers from the beginning of the line
+            line = re.sub(r'^[\-\*\u2022•]+\s*', '', line)
+
             # Normalize the line
             normalized = self.normalizer.normalize_text(line)
-            
+
             # Extract quantity
             qty, unit = self.normalizer.extract_quantity(line)
-            
+
             # Extract parameters
             params = self.normalizer.extract_parameters(normalized)
-            
-            # Calculate qty_units if we have qty_packs and pack_qty
+
+            # Calculate qty_units/qty_packs ensuring both variables are defined
+            qty_packs = None
             qty_units = None
             if qty and unit == 'шт':
                 qty_units = qty
             elif qty and unit == 'уп':
                 qty_packs = qty
-            else:
-                qty_packs = None
-            
+
             parsed_line = ParsedLine(
                 raw_text=line,
                 normalized_text=normalized,
