@@ -18,6 +18,7 @@ class MatchCandidate:
     name: str
     pack_qty: Optional[float]
     price: Optional[float]
+    unit: Optional[str]
     score: float
     explanation: str
     source: str  # rules/vector/gpt
@@ -105,6 +106,7 @@ class MatchingEngine:
                                 name=item['name'],
                                 pack_qty=item.get('pack_qty'),
                                 price=item.get('price'),
+                                unit=item.get('unit'),
                                 score=0.6,  # Высокий балл за точное совпадение алиаса
                                 explanation=f"Exact alias match: {alias['alias']} -> {alias_type}",
                                 source='rules'
@@ -129,8 +131,9 @@ class MatchingEngine:
                 candidate = MatchCandidate(
                     ku=item['sku'],
                     name=item['name'],
-                    pack_qty=item.get('pack_size'),
+                    pack_qty=item.get('pack_qty'),
                     price=item.get('price'),
+                    unit=item.get('unit'),
                     score=similarity,
                     explanation=f"Fuzzy match: {similarity:.2f} similarity",
                     source='rules'

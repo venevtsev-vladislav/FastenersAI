@@ -22,6 +22,7 @@ class ProcessingResult:
     chosen_ku: Optional[str]
     qty_packs: Optional[float]
     qty_units: Optional[float]
+    unit: Optional[str]
     price: Optional[float]
     total: Optional[float]
     status: str  # ok/needs_review/not_found/error
@@ -86,6 +87,7 @@ class ProcessingPipeline:
                         chosen_ku=None,
                         qty_packs=None,
                         qty_units=None,
+                        unit=None,
                         price=None,
                         total=None,
                         status='error',
@@ -119,25 +121,27 @@ class ProcessingPipeline:
             
             # Check if we should auto-accept
             should_auto_accept, best_candidate = self.matching_engine.should_auto_accept(candidates)
-            
+
+            chosen_candidate = None
             if should_auto_accept and best_candidate:
                 # Auto-accept
+                chosen_candidate = best_candidate
                 chosen_ku = best_candidate.ku
                 status = 'ok'
                 method = 'rules'
-                
+
                 # Calculate quantities and totals
                 qty_packs, qty_units, price, total = self._calculate_quantities(
-                    parsed_line, best_candidate
+                    parsed_line, chosen_candidate
                 )
-                
+
             elif candidates:
                 # Need GPT validation
                 gpt_candidates = self.matching_engine.get_candidates_for_gpt(candidates)
                 chosen_ku, status, method = await self.gpt_validator.validate_single_line(
                     parsed_line, gpt_candidates
                 )
-                
+
                 # Find the chosen candidate
                 chosen_candidate = None
                 if chosen_ku:
@@ -158,6 +162,7 @@ class ProcessingPipeline:
                 chosen_ku = None
                 status = 'not_found'
                 method = 'rules'
+                chosen_candidate = None
                 qty_packs = qty_units = price = total = None
             
             # Update request line in database (simplified for testing)
@@ -170,6 +175,7 @@ class ProcessingPipeline:
                 chosen_ku=chosen_ku,
                 qty_packs=qty_packs,
                 qty_units=qty_units,
+                unit=chosen_candidate.unit if chosen_candidate else None,
                 price=price,
                 total=total,
                 status=status,
@@ -220,6 +226,7 @@ class ProcessingPipeline:
                         'name': item.get('name', '') or '',
                         'pack_qty': item.get('pack_size', 1),
                         'price': item.get('price', 0),
+                        'unit': item.get('unit', ''),
                         'is_active': True,
                         'specs_json': {
                             'diameter': item.get('diameter', ''),
@@ -234,10 +241,11 @@ class ProcessingPipeline:
                 # Fallback to sample data if database is empty
                 return [
                     {
-                        'ku': 'BOLT-M10x30-8.8',
+                        'sku': 'BOLT-M10x30-8.8',
                         'name': 'Болт DIN 933 кл.пр.8.8 М10х30, цинк',
                         'pack_qty': 100,
                         'price': 2.50,
+                        'unit': 'шт',
                         'is_active': True,
                         'specs_json': {
                             'diameter': 'M10',
@@ -247,10 +255,11 @@ class ProcessingPipeline:
                         }
                     },
                     {
-                        'ku': 'ANCHOR-M10x100',
+                        'sku': 'ANCHOR-M10x100',
                         'name': 'Анкер клиновой оцинк. М10х100',
                         'pack_qty': 25,
                         'price': 15.80,
+                        'unit': 'шт',
                         'is_active': True,
                         'specs_json': {
                             'diameter': 'M10',

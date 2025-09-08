@@ -126,6 +126,7 @@ async def test_gpt_validator():
             name='Болт DIN 933 кл.пр.8.8 М10х30, цинк',
             pack_qty=100,
             price=2.50,
+            unit='шт',
             score=0.85,
             explanation='Exact match',
             source='rules'
@@ -135,6 +136,7 @@ async def test_gpt_validator():
             name='Болт М10х30, цинк',
             pack_qty=50,
             price=2.20,
+            unit='шт',
             score=0.75,
             explanation='Similar match',
             source='rules'
@@ -183,6 +185,7 @@ async def test_excel_generation():
             chosen_ku='BOLT-M10x30-8.8',
             qty_packs=2.0,
             qty_units=200.0,
+            unit='шт',
             price=2.50,
             total=500.0,
             status='ok',
@@ -193,6 +196,7 @@ async def test_excel_generation():
                     name='Болт DIN 933 кл.пр.8.8 М10х30, цинк',
                     pack_qty=100,
                     price=2.50,
+                    unit='шт',
                     score=0.95,
                     explanation='Exact match',
                     source='rules'
@@ -206,6 +210,7 @@ async def test_excel_generation():
             chosen_ku='ANCHOR-M10x100',
             qty_packs=1.0,
             qty_units=25.0,
+            unit='шт',
             price=15.80,
             total=15.80,
             status='ok',
@@ -216,6 +221,7 @@ async def test_excel_generation():
                     name='Анкер клиновой оцинк. М10х100',
                     pack_qty=25,
                     price=15.80,
+                    unit='шт',
                     score=0.90,
                     explanation='Exact match',
                     source='rules'

@@ -162,8 +162,8 @@ class TextParser:
         if not text:
             return []
         
-        # Split by common delimiters
-        lines = re.split(r'[\n;,\t]+', text)
+        # Split by common delimiters (comma removed to keep numbers like "4,0" intact)
+        lines = re.split(r'[\n;\t]+', text)
         
         parsed_lines = []
         for i, line in enumerate(lines, 1):

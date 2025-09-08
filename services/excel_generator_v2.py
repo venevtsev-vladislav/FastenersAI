@@ -61,8 +61,8 @@ class ExcelGeneratorV2:
         
         # Headers
         headers = [
-            "№", "Запрос", "KU", "Наименование", "Упаковка_pack_qty",
-            "Кол-во_уп", "Кол-во_шт", "Цена", "Сумма", "Статус"
+            "№", "Запрос", "SKU", "Наименование", "Упаковка_pack_qty",
+            "Единица_изм", "Кол-во_уп", "Кол-во_шт", "Цена", "Сумма", "Статус"
         ]
         
         # Write headers
@@ -74,27 +74,29 @@ class ExcelGeneratorV2:
         
         # Write data
         for row, result in enumerate(results, 2):
-            # Get item details if KU is chosen
+            # Get item details if SKU is chosen
             item_name = ""
             pack_qty = ""
-            price = ""
-            
+            unit = result.unit or ""
+
             if result.chosen_ku:
-                # This would normally come from database lookup
-                item_name = f"Item for {result.chosen_ku}"
-                pack_qty = "100"  # Placeholder
-                price = "10.50"   # Placeholder
-            
+                candidate = next((c for c in result.candidates if c.ku == result.chosen_ku), None)
+                if candidate:
+                    item_name = candidate.name
+                    pack_qty = candidate.pack_qty or ""
+                    unit = unit or (candidate.unit or "")
+
             sheet.cell(row=row, column=1, value=row - 1)  # №
             sheet.cell(row=row, column=2, value=result.raw_text)  # Запрос
-            sheet.cell(row=row, column=3, value=result.chosen_ku or "")  # KU
+            sheet.cell(row=row, column=3, value=result.chosen_ku or "")  # SKU
             sheet.cell(row=row, column=4, value=item_name)  # Наименование
             sheet.cell(row=row, column=5, value=pack_qty)  # Упаковка_pack_qty
-            sheet.cell(row=row, column=6, value=result.qty_packs or "")  # Кол-во_уп
-            sheet.cell(row=row, column=7, value=result.qty_units or "")  # Кол-во_шт
-            sheet.cell(row=row, column=8, value=price)  # Цена
-            sheet.cell(row=row, column=9, value=result.total or "")  # Сумма
-            sheet.cell(row=row, column=10, value=result.status)  # Статус
+            sheet.cell(row=row, column=6, value=unit)  # Единица_изм
+            sheet.cell(row=row, column=7, value=result.qty_packs or "")  # Кол-во_уп
+            sheet.cell(row=row, column=8, value=result.qty_units or "")  # Кол-во_шт
+            sheet.cell(row=row, column=9, value="")  # Цена
+            sheet.cell(row=row, column=10, value=result.total or "")  # Сумма
+            sheet.cell(row=row, column=11, value=result.status)  # Статус
     
     def _create_candidates_sheet(self, results: List[ProcessingResult]):
         """Create 'Кандидаты' sheet with all candidates"""
@@ -220,13 +222,13 @@ class ExcelGeneratorV2:
             if sheet_name == 'summary':
                 # Format price and total columns
                 for row in range(2, sheet.max_row + 1):
-                    # Price column (H)
-                    price_cell = sheet.cell(row=row, column=8)
+                    # Price column (I)
+                    price_cell = sheet.cell(row=row, column=9)
                     if price_cell.value:
                         price_cell.number_format = '#,##0.00'
-                    
-                    # Total column (I)
-                    total_cell = sheet.cell(row=row, column=9)
+
+                    # Total column (J)
+                    total_cell = sheet.cell(row=row, column=10)
                     if total_cell.value:
                         total_cell.number_format = '#,##0.00'
             
