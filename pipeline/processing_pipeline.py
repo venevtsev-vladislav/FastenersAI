@@ -117,7 +117,7 @@ class ProcessingPipeline:
             # Save candidates to database
             for candidate in candidates:
                 # Add candidates to database (simplified for testing)
-                logger.info(f"Found {len(candidates)} candidates for line")
+                logger.info(f"[Line {line_id}] Found {len(candidates)} candidates")
             
             # Check if we should auto-accept
             should_auto_accept, best_candidate = self.matching_engine.should_auto_accept(candidates)
@@ -129,6 +129,7 @@ class ProcessingPipeline:
                 chosen_ku = best_candidate.ku
                 status = 'ok'
                 method = 'rules'
+                logger.info(f"[Line {line_id}] Auto-accepted {chosen_ku}")
 
                 # Calculate quantities and totals
                 qty_packs, qty_units, price, total = self._calculate_quantities(
@@ -140,6 +141,9 @@ class ProcessingPipeline:
                 gpt_candidates = self.matching_engine.get_candidates_for_gpt(candidates)
                 chosen_ku, status, method = await self.gpt_validator.validate_single_line(
                     parsed_line, gpt_candidates
+                )
+                logger.info(
+                    f"[Line {line_id}] GPT validation result: chosen_ku={chosen_ku}, status={status}, method={method}"
                 )
 
                 # Find the chosen candidate
@@ -166,7 +170,7 @@ class ProcessingPipeline:
                 qty_packs = qty_units = price = total = None
             
             # Update request line in database (simplified for testing)
-            logger.info(f"Line processed: {status}")
+            logger.info(f"[Line {line_id}] Line processed: {status}")
             
             return ProcessingResult(
                 line_id=line_id,
