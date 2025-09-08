@@ -48,6 +48,9 @@ except ImportError as e:
 def main():
     """Основная функция запуска бота"""
     try:
+        if not TELEGRAM_TOKEN:
+            raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения")
+
         # Получаем порт для Railway (всегда используем 8000)
         port = 8000
         logger.info(f"Запуск на порту: {port}")

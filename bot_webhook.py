@@ -48,6 +48,9 @@ except ImportError as e:
 def main():
     """Основная функция запуска бота с webhook"""
     try:
+        if not TELEGRAM_TOKEN:
+            raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения")
+
         # Получаем порт для Railway
         port = int(os.getenv('PORT', 8000))
         base_url = os.getenv('WEBHOOK_BASE', 'https://your-app.up.railway.app')

@@ -77,6 +77,9 @@ def main():
         # Получаем порт для Railway (если не указан, используем 8000)
         port = int(os.getenv('PORT', 8000))
         logger.info(f"Запуск на порту: {port}")
+
+        if not TELEGRAM_TOKEN:
+            raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения")
         
         # Создаем приложение
         application = Application.builder().token(TELEGRAM_TOKEN).build()
