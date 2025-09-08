@@ -10,6 +10,53 @@ import os
 # Добавляем родительскую папку в путь для импорта
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import types
+
+# Создаем минимальный мок модуля telegram для импортов в MessageProcessor
+telegram_mock = types.ModuleType("telegram")
+
+class DummyMessage:
+    pass
+
+telegram_mock.Message = DummyMessage
+sys.modules['telegram'] = telegram_mock
+
+# Добавляем подмодуль telegram.ext с ContextTypes
+telegram_ext = types.ModuleType("telegram.ext")
+
+class ContextTypes:
+    class DEFAULT_TYPE:
+        pass
+
+telegram_ext.ContextTypes = ContextTypes
+sys.modules['telegram.ext'] = telegram_ext
+telegram_mock.ext = telegram_ext
+
+# Мок модуля openai, чтобы избежать реальных зависимостей
+openai_mock = types.ModuleType("openai")
+
+class AsyncOpenAI:
+    def __init__(self, *args, **kwargs):
+        pass
+
+openai_mock.AsyncOpenAI = AsyncOpenAI
+sys.modules['openai'] = openai_mock
+
+# Мок для dotenv.load_dotenv
+dotenv_mock = types.ModuleType("dotenv")
+
+def load_dotenv(*args, **kwargs):
+    return None
+
+dotenv_mock.load_dotenv = load_dotenv
+sys.modules['dotenv'] = dotenv_mock
+
+# Устанавливаем необходимые переменные окружения для config
+os.environ.setdefault('TELEGRAM_BOT_TOKEN', 'test')
+os.environ.setdefault('OPENAI_API_KEY', 'test')
+os.environ.setdefault('SUPABASE_URL', 'http://localhost')
+os.environ.setdefault('SUPABASE_KEY', 'test')
+
 from services.message_processor import MessageProcessor
 
 def test_smart_parser():
@@ -37,6 +84,12 @@ def test_smart_parser():
             "query": "винт M6",
             "expected": "Простой формат",
             "description": "Тип + размер"
+        },
+        {
+            "query": "болт M6 10 шт",
+            "expected": "Простой формат",
+            "description": "Простой запрос с количеством",
+            "expected_quantity": 10
         },
         {
             "query": "нужно что-то для крепления",
@@ -78,6 +131,12 @@ def test_smart_parser():
             # Показываем basic_intent для простых запросов
             if not need_gpt and basic_intent:
                 print(f"📊 Basic intent: {basic_intent}")
+                if 'expected_quantity' in test_case:
+                    if basic_intent.get('quantity') == test_case['expected_quantity']:
+                        print(f"📦 Количество распознано: {basic_intent['quantity']}")
+                    else:
+                        print(f"❌ Неверное количество: {basic_intent.get('quantity')} (ожидалось {test_case['expected_quantity']})")
+                        passed -= 1
                 
         except Exception as e:
             print(f"💥 ОШИБКА: {e}")

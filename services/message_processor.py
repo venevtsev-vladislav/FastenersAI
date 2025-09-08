@@ -4,6 +4,7 @@
 
 import logging
 import asyncio
+import re
 from telegram import Message
 from services.openai_service import OpenAIService
 from services.media_processor import MediaProcessor
@@ -78,18 +79,6 @@ class MessageProcessor:
             if not user_intent or user_intent.get('type') == 'неизвестно':
                 logger.info("🔍 Не удалось распознать, создаем базовый user_intent")
                 user_intent = self._create_basic_user_intent(text)
-                quantity = None
-                qty_match = re.search(r'(\d+)\s*шт', text_lower)
-                if qty_match:
-                    quantity = f"{qty_match.group(1)} шт"
-                
-                user_intent = {
-                    'type': detected_type,
-                    'diameter': diameter,
-                    'length': f"{length} мм" if length else None,
-                    'quantity': quantity,
-                    'confidence': 0.7
-                }
             # Нормализуем формат: если пришел список позиций, оборачиваем в объект множественного заказа
             if isinstance(user_intent, list):
                 user_intent = { 'is_multiple_order': True, 'items': user_intent }
@@ -103,15 +92,12 @@ class MessageProcessor:
                 
         except Exception as e:
             logger.error(f"Ошибка при анализе через SmartParser: {e}")
-            # Fallback: используем ассистента, затем SmartParser при неудаче
+            # Fallback: используем ассистента, затем базовый разбор при неудаче
             try:
                 assistant_result = await self.openai_service.analyze_with_assistant(text)
                 logger.info(f"Fallback ассистент анализ успешен: {assistant_result}")
                 if not assistant_result or (isinstance(assistant_result, dict) and assistant_result.get('type') == 'неизвестно'):
-                    # Последний рубеж — SmartParser
-                    sp = SmartParser()
-                    pr = sp.parse_query(text)
-                    user_intent = pr.get('user_intent')
+                    user_intent = self._create_basic_user_intent(text)
                 else:
                     # Обрабатываем результат ассистента (может быть массив items или один объект)
                     if isinstance(assistant_result, dict) and 'items' in assistant_result:
@@ -128,7 +114,7 @@ class MessageProcessor:
                         user_intent = assistant_result
             except Exception as gpt_error:
                 logger.error(f"Fallback GPT также не сработал: {gpt_error}")
-                user_intent = None
+                user_intent = self._create_basic_user_intent(text)
             
             return {
                 'type': 'text',
@@ -307,15 +293,15 @@ class MessageProcessor:
         
         # Простые паттерны (НЕ нужен GPT)
         simple_patterns = [
-            r'DIN\s+\d+\s+[M]\d+[x×]\d+',        # DIN 965 M6x20
-            r'[М]\d+\s+\d+\s*мм',                # M6 20 мм
-            r'винт\s+[М]\d+',                    # винт M6
-            r'гайка\s+[М]\d+',                   # гайка M6
-            r'болт\s+[М]\d+[x×]\d+',            # болт М6x40
+            r'DIN\s+\d+\s+[MМ]\d+[x×]\d+',        # DIN 965 M6x20
+            r'[MМ]\d+\s+\d+\s*мм',                # M6 20 мм
+            r'винт\s+[MМ]\d+',                    # винт M6
+            r'гайка\s+[MМ]\d+',                   # гайка M6
+            r'болт\s+[MМ]\d+[x×]\d+',            # болт М6x40
+            r'болт\s+[MМ]\d+\s+\d+\s*шт',      # болт M6 10 шт
         ]
         
         # Проверяем простые паттерны
-        import re
         for pattern in simple_patterns:
             if re.search(pattern, text_lower):
                 basic_intent = self._create_basic_user_intent(text)
@@ -337,7 +323,6 @@ class MessageProcessor:
     
     def _create_basic_user_intent(self, text: str) -> dict:
         """Создает базовый user_intent из текста"""
-        import re
         text_lower = text.lower()
         
         # Определяем тип
@@ -356,10 +341,11 @@ class MessageProcessor:
         # Ищем размеры M6x40
         diameter = None
         length = None
-        match = re.search(r'[МM](\d+)[x×х]\s*(\d+)', text_lower)
+        match = re.search(r'[MМ](\d+)(?:[x×х]\s*(\d+))?', text_lower)
         if match:
             diameter = f"M{match.group(1)}"
-            length = f"{match.group(2)} мм"
+            if match.group(2):
+                length = f"{match.group(2)} мм"
         
         # Ищем количество
         quantity = None
