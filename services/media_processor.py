@@ -17,9 +17,29 @@ class MediaProcessor:
     # Поддерживаемые типы файлов
     SUPPORTED_DOCUMENT_TYPES = ['.xlsx', '.xls', '.pdf']
     MAX_FILE_SIZE = 1024 * 1024  # 1 MB
-    
+
     def __init__(self):
         self.temp_files = []  # Для отслеживания временных файлов
+
+    async def voice_to_text(self, file_path: str) -> str:
+        """Преобразует голосовое сообщение в текст"""
+        logger.warning("voice_to_text заглушка: функциональность не реализована")
+        return ""
+
+    async def audio_to_text(self, file_path: str) -> str:
+        """Преобразует аудио файл в текст"""
+        logger.warning("audio_to_text заглушка: функциональность не реализована")
+        return ""
+
+    async def image_to_text(self, file_path: str) -> str:
+        """Извлекает текст из изображения"""
+        logger.warning("image_to_text заглушка: функциональность не реализована")
+        return ""
+
+    async def pdf_to_text(self, file_path: str) -> str:
+        """Извлекает текст из PDF документа"""
+        logger.warning("pdf_to_text заглушка: функциональность не реализована")
+        return ""
     
     async def process_media_message(self, message: Message, context: ContextTypes.DEFAULT_TYPE) -> Optional[Dict[str, Any]]:
         """Обрабатывает медиа сообщение и возвращает результат"""
